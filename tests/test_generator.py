@@ -136,6 +136,16 @@ def test_generate_empty_headers_is_empty_dict(tmp_path):
     assert "{}" in content
 
 
+def test_generate_env_var_in_header_value(tmp_path):
+    """ENV_token in header value should become os.environ.get('token', '') f-string."""
+    out = tmp_path / "test_api.py"
+    req = _req(headers={"Authorization": "Bearer ENV_token"})
+    generate([req], collection_name="API", output_path=out)
+    content = out.read_text(encoding="utf-8")
+    assert "os.environ.get('token'" in content
+    assert "ENV_token" not in content  # must not be literal
+
+
 # ── multiple requests ─────────────────────────────────────────────────────────
 
 def test_generate_multiple_requests(tmp_path):

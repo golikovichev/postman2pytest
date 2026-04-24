@@ -27,11 +27,24 @@ def _strip_base_url(url: str) -> str:
     ENV_base_url/api/v1/users  →  api/v1/users
     path/ENV_version/users     →  path/{os.environ.get('version', '')}/users
     """
-    # Strip the leading ENV_xxx (the base URL placeholder — covered by BASE_URL)
     url = _ENV_PREFIX_RE.sub("", url)
-    # Replace any remaining ENV_xxx with an f-string expression
     url = _ENV_VAR_RE.sub(r"{os.environ.get('\1', '')}", url)
     return url
+
+
+def _render_header_value(value: str) -> str:
+    """
+    Render a header value as a Python expression.
+
+    Plain values → JSON string literal: "application/json"
+    Values with ENV_xxx → f-string: f"Bearer {os.environ.get('token', '')}"
+    """
+    import json
+    if "ENV_" not in value:
+        return json.dumps(value)
+    fstring_body = _ENV_VAR_RE.sub(r"{os.environ.get('\1', '')}", value)
+    # Escape any existing backslashes/quotes in the non-ENV portions
+    return f'f"{fstring_body}"'
 
 
 def generate(
@@ -55,6 +68,7 @@ def generate(
     )
     env.filters["tojson"] = _to_python_repr
     env.filters["strip_base_url"] = _strip_base_url
+    env.filters["render_header_value"] = _render_header_value
 
     template = env.get_template("test_collection.jinja2")
 
