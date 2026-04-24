@@ -7,6 +7,8 @@
 
 Convert a **Postman Collection v2.1** JSON file into a ready-to-run **pytest** test suite — in one command.
 
+📖 **[Read the article on Dev.to](https://dev.to/golikovichev/postman-and-pytest-are-living-in-parallel-universes-heres-a-bridge-5bgn)**
+
 ```bash
 postman2pytest --collection my_api.json --out tests/test_api.py
 BASE_URL=https://api.example.com pytest tests/test_api.py -v
