@@ -1,6 +1,7 @@
 # postman2pytest
 
 [![CI](https://github.com/golikovichev/postman2pytest/actions/workflows/ci.yml/badge.svg)](https://github.com/golikovichev/postman2pytest/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/postman2pytest)](https://pypi.org/project/postman2pytest/)
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)](https://pypi.org/project/postman2pytest/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
