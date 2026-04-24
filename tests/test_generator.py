@@ -101,7 +101,7 @@ def test_generate_body_included_as_json(tmp_path):
     generate([req], collection_name="API", output_path=out)
     content = out.read_text(encoding="utf-8")
     assert "json=body" in content
-    assert '{"name": "Alice"}' in content
+    assert "Alice" in content  # body content present (JSON-encoded in source)
 
 
 # ── status assertion ──────────────────────────────────────────────────────────

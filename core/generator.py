@@ -5,6 +5,7 @@ Takes a list of ParsedRequest objects and renders them via Jinja2.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,6 +16,22 @@ from core.parser import ParsedRequest
 logger = logging.getLogger(__name__)
 
 _TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
+_ENV_PREFIX_RE = re.compile(r"^ENV_\w+/?")
+_ENV_VAR_RE = re.compile(r"ENV_(\w+)")
+
+
+def _strip_base_url(url: str) -> str:
+    """
+    Transform ENV_xxx URLs for use in f-strings inside generated tests.
+
+    ENV_base_url/api/v1/users  →  api/v1/users
+    path/ENV_version/users     →  path/{os.environ.get('version', '')}/users
+    """
+    # Strip the leading ENV_xxx (the base URL placeholder — covered by BASE_URL)
+    url = _ENV_PREFIX_RE.sub("", url)
+    # Replace any remaining ENV_xxx with an f-string expression
+    url = _ENV_VAR_RE.sub(r"{os.environ.get('\1', '')}", url)
+    return url
 
 
 def generate(
@@ -37,6 +54,7 @@ def generate(
         lstrip_blocks=True,
     )
     env.filters["tojson"] = _to_python_repr
+    env.filters["strip_base_url"] = _strip_base_url
 
     template = env.get_template("test_collection.jinja2")
 

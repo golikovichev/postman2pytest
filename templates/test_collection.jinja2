@@ -15,7 +15,7 @@ BASE_URL = os.environ.get("BASE_URL", "http://localhost:8080")
 {% for req in requests %}
 def {{ req.test_name }}():
     """{{ req.method }} {{ req.url }}{% if req.folder %} ({{ req.folder }}){% endif %}"""
-    url = f"{BASE_URL}/{{ req.url | replace('ENV_', '{') | replace('ENV_', '}') }}"
+    url = f"{BASE_URL}/{{ req.url | strip_base_url }}"
     headers = {{ req.headers | tojson }}
     {% if req.body %}
     import json as _json
