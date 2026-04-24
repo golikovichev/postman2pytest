@@ -55,7 +55,7 @@ def main() -> int:
     output_path = Path(args.out)
     generate(requests, collection_name=collection_name, output_path=output_path)
 
-    print(f"\n✓ Generated {len(requests)} test(s) → {output_path}")
+    print(f"\nGenerated {len(requests)} test(s) -> {output_path}")
     print(f"  Run with: pytest {output_path} -v")
     if args.base_url:
         print(f"  Tip: BASE_URL={args.base_url} pytest {output_path} -v")
