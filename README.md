@@ -1,5 +1,9 @@
 # postman2pytest
 
+[![CI](https://github.com/golikovichev/postman2pytest/actions/workflows/ci.yml/badge.svg)](https://github.com/golikovichev/postman2pytest/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)](https://pypi.org/project/postman2pytest/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 Convert a **Postman Collection v2.1** JSON file into a ready-to-run **pytest** test suite — in one command.
 
 ```bash
