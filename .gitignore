@@ -17,3 +17,7 @@ generated_tests/
 *.pyc
 .DS_Store
 Thumbs.db
+
+# IDE
+.idea/
+.vscode/

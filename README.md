@@ -101,6 +101,10 @@ pytest tests/ -v
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
