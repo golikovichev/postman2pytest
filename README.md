@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)](https://pypi.org/project/postman2pytest/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Convert a **Postman Collection v2.1** JSON file into a ready-to-run **pytest** test suite — in one command.
+Convert a **Postman Collection v2.1** JSON file into a ready-to-run **pytest** test suite. One command.
 
 📖 **[Read the article on Dev.to](https://dev.to/golikovichev/postman-and-pytest-are-living-in-parallel-universes-heres-a-bridge-5bgn)**
 
@@ -16,7 +16,7 @@ BASE_URL=https://api.example.com pytest tests/test_api.py -v
 
 ## Why
 
-Postman collections document your API. `postman2pytest` turns that documentation into executable regression tests that run in CI — no manual rewriting, no drift.
+Postman collections document your API. `postman2pytest` turns that documentation into executable regression tests that run in CI. No manual rewriting, no drift.
 
 ## Install
 
@@ -56,9 +56,9 @@ BASE_URL=https://staging.example.com pytest generated_tests/test_api.py -v
 
 ## How It Works
 
-1. **Parse** — reads the Postman Collection JSON, flattens nested folders into a flat request list
-2. **Extract** — captures method, URL, headers, body, and expected status from `pm.response.to.have.status()` test scripts
-3. **Generate** — renders a Jinja2 template into a `.py` file with one `def test_*()` per request
+1. **Parse**: reads the Postman Collection JSON, flattens nested folders into a flat request list
+2. **Extract**: captures method, URL, headers, body, and expected status from `pm.response.to.have.status()` test scripts
+3. **Generate**: renders a Jinja2 template into a `.py` file with one `def test_*()` per request
 
 ### Variable substitution
 
@@ -88,7 +88,7 @@ def test_get_users():
 - ✅ Raw JSON body
 - ✅ Expected status from `pm.response.to.have.status(N)` test scripts
 - ✅ Falls back to 200 when no status assertion found
-- ✅ Malformed items skipped with a warning — rest of collection still generated
+- ✅ Malformed items skipped with a warning. Rest of collection still generated
 
 ## Running tests
 
@@ -107,4 +107,4 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
