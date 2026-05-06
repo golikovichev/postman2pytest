@@ -8,10 +8,16 @@ import argparse
 import json
 import logging
 import sys
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from core.generator import generate
 from core.parser import parse_collection
+
+try:
+    __version__ = version("postman2pytest")
+except PackageNotFoundError:
+    __version__ = "1.0.0"
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -20,6 +26,9 @@ logger = logging.getLogger(__name__)
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Convert a Postman Collection v2.1 into executable pytest tests."
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"postman2pytest {__version__}"
     )
     parser.add_argument(
         "--collection", required=True,
