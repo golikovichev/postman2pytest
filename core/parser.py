@@ -2,6 +2,7 @@
 Postman Collection v2.1 parser.
 Validates and flattens collection items into a list of ParsedRequest objects.
 """
+
 from __future__ import annotations
 
 import json
@@ -104,15 +105,17 @@ def _parse_item(item: dict, folder: str | None = None) -> list[ParsedRequest]:
         events = item.get("event", [])
         expected_status = _extract_status(events) or 200
 
-        results.append(ParsedRequest(
-            name=item.get("name", "unnamed"),
-            method=method,
-            url=raw_url,
-            headers=headers,
-            body=body,
-            expected_status=expected_status,
-            folder=folder,
-        ))
+        results.append(
+            ParsedRequest(
+                name=item.get("name", "unnamed"),
+                method=method,
+                url=raw_url,
+                headers=headers,
+                body=body,
+                expected_status=expected_status,
+                folder=folder,
+            )
+        )
     except Exception as exc:
         logger.warning("Skipping item '%s': %s", item.get("name", "?"), exc)
 

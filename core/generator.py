@@ -2,6 +2,7 @@
 Pytest file generator.
 Takes a list of ParsedRequest objects and renders them via Jinja2.
 """
+
 from __future__ import annotations
 
 import logging
@@ -40,6 +41,7 @@ def _render_header_value(value: str) -> str:
     Values with ENV_xxx → f-string: f"Bearer {os.environ.get('token', '')}"
     """
     import json
+
     if "ENV_" not in value:
         return json.dumps(value)
     fstring_body = _ENV_VAR_RE.sub(r"{os.environ.get('\1', '')}", value)
@@ -86,4 +88,5 @@ def generate(
 def _to_python_repr(value: object) -> str:
     """Jinja2 filter: render a Python value as a repr-safe string."""
     import json
+
     return json.dumps(value, ensure_ascii=False)

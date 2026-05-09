@@ -1,14 +1,12 @@
 """Tests for core/parser.py"""
+
 import json
-import textwrap
 from pathlib import Path
 
-import pytest
-
-from core.parser import parse_collection, _replace_vars, _extract_status
-
+from core.parser import _extract_status, _replace_vars, parse_collection
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
 
 def _write_collection(tmp_path: Path, data: dict) -> Path:
     p = tmp_path / "collection.json"
@@ -39,6 +37,7 @@ def _simple_request(name: str, method: str = "GET", url: str = "{{base_url}}/api
 
 # ── _replace_vars ─────────────────────────────────────────────────────────────
 
+
 def test_replace_vars_substitutes_postman_variable():
     assert _replace_vars("{{base_url}}/api") == "ENV_base_url/api"
 
@@ -54,6 +53,7 @@ def test_replace_vars_no_variables():
 
 
 # ── _extract_status ───────────────────────────────────────────────────────────
+
 
 def test_extract_status_finds_code():
     events = [{"listen": "test", "script": {"exec": ["pm.response.to.have.status(201);"]}}]
@@ -71,6 +71,7 @@ def test_extract_status_ignores_prerequest_events():
 
 
 # ── parse_collection ──────────────────────────────────────────────────────────
+
 
 def test_parse_single_get_request(tmp_path):
     col = _minimal_collection([_simple_request("Get users", "GET", "{{base_url}}/users")])
@@ -114,7 +115,9 @@ def test_parse_expected_status_from_test_script(tmp_path):
 
 
 def test_parse_default_status_200(tmp_path):
-    requests = parse_collection(_write_collection(tmp_path, _minimal_collection([_simple_request("X")])))
+    requests = parse_collection(
+        _write_collection(tmp_path, _minimal_collection([_simple_request("X")]))
+    )
     assert requests[0].expected_status == 200
 
 
@@ -149,7 +152,9 @@ def test_parse_disabled_headers_excluded(tmp_path):
 
 def test_test_name_slug_format(tmp_path):
     requests = parse_collection(
-        _write_collection(tmp_path, _minimal_collection([_simple_request("Get All Users!", "POST")]))
+        _write_collection(
+            tmp_path, _minimal_collection([_simple_request("Get All Users!", "POST")])
+        )
     )
     name = requests[0].test_name
     assert name.startswith("test_")

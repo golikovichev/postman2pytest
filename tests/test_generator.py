@@ -1,14 +1,12 @@
 """Tests for core/generator.py"""
-import textwrap
-from pathlib import Path
 
 import pytest
 
 from core.generator import generate
 from core.parser import ParsedRequest
 
-
 # ── fixtures ──────────────────────────────────────────────────────────────────
+
 
 def _req(**overrides) -> ParsedRequest:
     defaults = dict(
@@ -25,6 +23,7 @@ def _req(**overrides) -> ParsedRequest:
 
 
 # ── generate — basic output ───────────────────────────────────────────────────
+
 
 def test_generate_creates_file(tmp_path):
     out = tmp_path / "test_api.py"
@@ -59,6 +58,7 @@ def test_generate_contains_base_url_env(tmp_path):
 
 # ── test function names ───────────────────────────────────────────────────────
 
+
 def test_generate_test_function_name(tmp_path):
     out = tmp_path / "test_api.py"
     req = _req(name="List all items", method="GET", folder=None)
@@ -77,6 +77,7 @@ def test_generate_folder_in_function_name(tmp_path):
 
 # ── HTTP methods ──────────────────────────────────────────────────────────────
 
+
 @pytest.mark.parametrize("method", ["GET", "POST", "PUT", "DELETE", "PATCH"])
 def test_generate_correct_http_method(tmp_path, method):
     out = tmp_path / "test_api.py"
@@ -87,6 +88,7 @@ def test_generate_correct_http_method(tmp_path, method):
 
 
 # ── body handling ─────────────────────────────────────────────────────────────
+
 
 def test_generate_no_body_omits_json_arg(tmp_path):
     out = tmp_path / "test_api.py"
@@ -106,6 +108,7 @@ def test_generate_body_included_as_json(tmp_path):
 
 # ── status assertion ──────────────────────────────────────────────────────────
 
+
 def test_generate_status_assertion_200(tmp_path):
     out = tmp_path / "test_api.py"
     generate([_req(expected_status=200)], collection_name="API", output_path=out)
@@ -119,6 +122,7 @@ def test_generate_status_assertion_201(tmp_path):
 
 
 # ── headers ───────────────────────────────────────────────────────────────────
+
 
 def test_generate_headers_present(tmp_path):
     out = tmp_path / "test_api.py"
@@ -148,6 +152,7 @@ def test_generate_env_var_in_header_value(tmp_path):
 
 # ── multiple requests ─────────────────────────────────────────────────────────
 
+
 def test_generate_multiple_requests(tmp_path):
     out = tmp_path / "test_api.py"
     reqs = [
@@ -163,6 +168,7 @@ def test_generate_multiple_requests(tmp_path):
 
 
 # ── valid Python syntax ───────────────────────────────────────────────────────
+
 
 def test_generate_output_is_valid_python(tmp_path):
     out = tmp_path / "test_api.py"
