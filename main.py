@@ -1,5 +1,5 @@
 """
-postman2pytest — convert a Postman Collection v2.1 into executable pytest tests.
+postman2pytest: convert a Postman Collection v2.1 into executable pytest tests.
 
 Usage:
     python main.py --collection data/my_api.postman_collection.json --out generated_tests/test_api.py
@@ -59,7 +59,7 @@ def main() -> int:
 
     requests = parse_collection(collection_path)
     if not requests:
-        logger.error("No valid requests found in collection — nothing to generate")
+        logger.error("No valid requests found in collection. Nothing to generate.")
         return 1
 
     output_path = Path(args.out)

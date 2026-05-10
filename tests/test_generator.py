@@ -5,7 +5,7 @@ import pytest
 from core.generator import generate
 from core.parser import ParsedRequest
 
-# ── fixtures ──────────────────────────────────────────────────────────────────
+# Fixtures
 
 
 def _req(**overrides) -> ParsedRequest:
@@ -22,7 +22,7 @@ def _req(**overrides) -> ParsedRequest:
     return ParsedRequest(**defaults)
 
 
-# ── generate — basic output ───────────────────────────────────────────────────
+# Generate: basic output
 
 
 def test_generate_creates_file(tmp_path):
@@ -56,7 +56,7 @@ def test_generate_contains_base_url_env(tmp_path):
     assert 'os.environ.get("BASE_URL"' in content
 
 
-# ── test function names ───────────────────────────────────────────────────────
+# Test function names
 
 
 def test_generate_test_function_name(tmp_path):
@@ -75,7 +75,7 @@ def test_generate_folder_in_function_name(tmp_path):
     assert "def test_users_post_create()" in content
 
 
-# ── HTTP methods ──────────────────────────────────────────────────────────────
+# Http methods
 
 
 @pytest.mark.parametrize("method", ["GET", "POST", "PUT", "DELETE", "PATCH"])
@@ -87,7 +87,7 @@ def test_generate_correct_http_method(tmp_path, method):
     assert f"requests.{method.lower()}(" in content
 
 
-# ── body handling ─────────────────────────────────────────────────────────────
+# Body handling
 
 
 def test_generate_no_body_omits_json_arg(tmp_path):
@@ -106,7 +106,7 @@ def test_generate_body_included_as_json(tmp_path):
     assert "Alice" in content  # body content present (JSON-encoded in source)
 
 
-# ── status assertion ──────────────────────────────────────────────────────────
+# Status assertion
 
 
 def test_generate_status_assertion_200(tmp_path):
@@ -121,7 +121,7 @@ def test_generate_status_assertion_201(tmp_path):
     assert "== 201" in out.read_text(encoding="utf-8")
 
 
-# ── headers ───────────────────────────────────────────────────────────────────
+# Headers
 
 
 def test_generate_headers_present(tmp_path):
@@ -150,7 +150,7 @@ def test_generate_env_var_in_header_value(tmp_path):
     assert "ENV_token" not in content  # must not be literal
 
 
-# ── multiple requests ─────────────────────────────────────────────────────────
+# Multiple requests
 
 
 def test_generate_multiple_requests(tmp_path):
@@ -167,7 +167,7 @@ def test_generate_multiple_requests(tmp_path):
     assert "== 204" in content
 
 
-# ── valid Python syntax ───────────────────────────────────────────────────────
+# Valid python syntax
 
 
 def test_generate_output_is_valid_python(tmp_path):

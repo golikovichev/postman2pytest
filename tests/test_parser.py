@@ -5,7 +5,7 @@ from pathlib import Path
 
 from core.parser import _extract_status, _replace_vars, parse_collection
 
-# ── helpers ──────────────────────────────────────────────────────────────────
+# Helpers
 
 
 def _write_collection(tmp_path: Path, data: dict) -> Path:
@@ -35,7 +35,7 @@ def _simple_request(name: str, method: str = "GET", url: str = "{{base_url}}/api
     }
 
 
-# ── _replace_vars ─────────────────────────────────────────────────────────────
+# _replace_vars
 
 
 def test_replace_vars_substitutes_postman_variable():
@@ -52,7 +52,7 @@ def test_replace_vars_no_variables():
     assert _replace_vars("http://localhost/api") == "http://localhost/api"
 
 
-# ── _extract_status ───────────────────────────────────────────────────────────
+# _extract_status
 
 
 def test_extract_status_finds_code():
@@ -70,7 +70,7 @@ def test_extract_status_ignores_prerequest_events():
     assert _extract_status(events) is None
 
 
-# ── parse_collection ──────────────────────────────────────────────────────────
+# Parse_collection
 
 
 def test_parse_single_get_request(tmp_path):

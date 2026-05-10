@@ -59,7 +59,7 @@ def generate(
     Creates parent directories if needed.
     """
     if not requests:
-        logger.warning("No requests to generate — output file not written")
+        logger.warning("No requests to generate. Output file not written.")
         return
 
     env = Environment(

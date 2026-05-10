@@ -25,15 +25,15 @@ All tests must pass before opening a PR.
 
 ```
 core/
-  parser.py     — Postman JSON → ParsedRequest objects
-  generator.py  — ParsedRequest list → pytest file via Jinja2
+  parser.py     - Postman JSON → ParsedRequest objects
+  generator.py  - ParsedRequest list → pytest file via Jinja2
 templates/
-  test_collection.jinja2  — output template
+  test_collection.jinja2  - output template
 tests/
-  test_parser.py    — unit tests for parser
-  test_generator.py — unit tests for generator
-main.py           — CLI entry point
-data/             — sample collections for manual testing
+  test_parser.py    - unit tests for parser
+  test_generator.py - unit tests for generator
+main.py           - CLI entry point
+data/             - sample collections for manual testing
 ```
 
 ## Submitting changes
@@ -48,4 +48,4 @@ data/             — sample collections for manual testing
 - Python 3.10+ type hints throughout
 - No external dependencies beyond `pydantic`, `jinja2`, `requests`
 - Keep `core/parser.py` free of business logic unrelated to parsing
-- Keep `core/generator.py` thin — logic belongs in the template or the model
+- Keep `core/generator.py` thin - logic belongs in the template or the model

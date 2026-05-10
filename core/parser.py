@@ -72,7 +72,7 @@ def _parse_item(item: dict, folder: str | None = None) -> list[ParsedRequest]:
     """Recursively parse a Postman item (request or folder)."""
     results: list[ParsedRequest] = []
 
-    # Folder — recurse into sub-items
+    # Folder: recurse into sub-items
     if "item" in item:
         folder_name = re.sub(r"[^a-z0-9]+", "_", item.get("name", "").lower()).strip("_")
         for sub in item["item"]:
@@ -132,7 +132,7 @@ def parse_collection(path: Path) -> list[ParsedRequest]:
 
     schema = data.get("info", {}).get("schema", "")
     if "v2.1" not in schema and "v2.0" not in schema:
-        logger.warning("Unexpected collection schema: %s — proceeding anyway", schema)
+        logger.warning("Unexpected collection schema: %s. Proceeding anyway.", schema)
 
     items = data.get("item", [])
     results: list[ParsedRequest] = []
