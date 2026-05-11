@@ -1,9 +1,10 @@
 """Tests for core/parser.py"""
 
 import json
+import re
 from pathlib import Path
 
-from core.parser import _extract_status, _replace_vars, parse_collection
+from core.parser import _extract_status, _replace_vars, _slugify, parse_collection
 
 # Helpers
 
@@ -160,3 +161,118 @@ def test_test_name_slug_format(tmp_path):
     assert name.startswith("test_")
     assert " " not in name
     assert "!" not in name
+
+
+# _slugify
+
+
+def test_slugify_ascii_passthrough():
+    assert _slugify("Get Users") == "get_users"
+
+
+def test_slugify_strips_punctuation():
+    assert _slugify("Get All Users!") == "get_all_users"
+
+
+def test_slugify_cyrillic_transliterates():
+    assert _slugify("Заказы") == "zakazy"
+
+
+def test_slugify_chinese_transliterates():
+    # unidecode renders the two ideograms as separate pinyin tokens
+    result = _slugify("订单")
+    assert result and result != "unnamed"
+    assert re.match(r"^[a-z0-9_]+$", result)
+
+
+def test_slugify_accented_latin_transliterates():
+    assert _slugify("Café Münchën") == "cafe_munchen"
+
+
+def test_slugify_empty_returns_unnamed():
+    assert _slugify("") == "unnamed"
+
+
+def test_slugify_only_punctuation_returns_unnamed():
+    assert _slugify("!!!---") == "unnamed"
+
+
+# Non-ASCII folder and disambiguation (issue #3)
+
+
+def test_parse_cyrillic_folder_produces_ascii_test_name(tmp_path):
+    folder = {
+        "name": "Заказы",
+        "item": [_simple_request("Create", "POST")],
+    }
+    requests = parse_collection(_write_collection(tmp_path, _minimal_collection([folder])))
+    assert requests[0].test_name == "test_zakazy_post_create"
+
+
+def test_parse_collision_appends_numeric_suffix(tmp_path):
+    # Four requests in the same folder, all POST, all named "" (Postman
+    # collections produced by some tools omit the name field). Before the
+    # fix this produced four identical test_post functions and pytest only
+    # collected one. After the fix each gets a numeric suffix.
+    folder = {
+        "name": "Orders",
+        "item": [
+            {"name": "", "request": {"method": "POST", "header": [], "url": {"raw": "/a"}}},
+            {"name": "", "request": {"method": "POST", "header": [], "url": {"raw": "/b"}}},
+            {"name": "", "request": {"method": "POST", "header": [], "url": {"raw": "/c"}}},
+            {"name": "", "request": {"method": "POST", "header": [], "url": {"raw": "/d"}}},
+        ],
+    }
+    requests = parse_collection(_write_collection(tmp_path, _minimal_collection([folder])))
+    names = [r.test_name for r in requests]
+    assert len(set(names)) == 4, f"Expected unique names, got {names}"
+    assert names == [
+        "test_orders_post_unnamed_1",
+        "test_orders_post_unnamed_2",
+        "test_orders_post_unnamed_3",
+        "test_orders_post_unnamed_4",
+    ]
+
+
+def test_parse_no_collision_leaves_names_clean(tmp_path):
+    folder = {
+        "name": "Users",
+        "item": [_simple_request("List", "GET"), _simple_request("Create", "POST")],
+    }
+    requests = parse_collection(_write_collection(tmp_path, _minimal_collection([folder])))
+    # No suffixes when there is no collision
+    assert requests[0].test_name == "test_users_get_list"
+    assert requests[1].test_name == "test_users_post_create"
+
+
+def test_parse_cyrillic_folder_and_collision_combined(tmp_path):
+    # Regression for the exact issue #3 reproduction: Cyrillic folder name
+    # plus several requests sharing method and missing name field. Before
+    # the fix the folder slug was empty and all functions reduced to test_post.
+    folder = {
+        "name": "Заказы",
+        "item": [
+            {"name": "", "request": {"method": "POST", "header": [], "url": {"raw": "/x"}}},
+            {"name": "", "request": {"method": "POST", "header": [], "url": {"raw": "/y"}}},
+        ],
+    }
+    requests = parse_collection(_write_collection(tmp_path, _minimal_collection([folder])))
+    names = [r.test_name for r in requests]
+    assert len(set(names)) == 2
+    assert all(n.startswith("test_zakazy_post_unnamed_") for n in names)
+
+
+def test_parse_emits_warning_on_disambiguation(tmp_path, caplog):
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="core.parser")
+    folder = {
+        "name": "X",
+        "item": [
+            {"name": "", "request": {"method": "POST", "header": [], "url": {"raw": "/a"}}},
+            {"name": "", "request": {"method": "POST", "header": [], "url": {"raw": "/b"}}},
+        ],
+    }
+    parse_collection(_write_collection(tmp_path, _minimal_collection([folder])))
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert any("Disambiguating" in r.message for r in warnings)
