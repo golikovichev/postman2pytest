@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-05-11
+
+### Fixed
+
+- Non-ASCII folder names (Cyrillic, Chinese, Arabic, accented Latin) no longer
+  produce empty test name prefixes that silently collide. Folder slugs are now
+  transliterated via `unidecode` so `Заказы` becomes `zakazy` in the generated
+  function name. Closes #3.
+- Test names that would still collide after slugification (for example several
+  requests in the same folder sharing an HTTP method and missing the Postman
+  `name` field) now receive a `_1` / `_2` / `_N` suffix so every parsed request
+  maps to a unique pytest function. The parser emits a warning per affected
+  base name.
+
+### Added
+
+- `unidecode>=1.3,<2` runtime dependency for ASCII transliteration.
+- 12 unit tests covering Cyrillic, Chinese, accented Latin, empty input,
+  punctuation-only input, no-collision passthrough, and the exact issue #3
+  reproduction.
+
 ## [1.0.0] - 2026-04-24
 
 ### Added
