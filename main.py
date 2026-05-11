@@ -18,7 +18,7 @@ from core.parser import parse_collection
 try:
     __version__ = version("postman2pytest")
 except PackageNotFoundError:
-    __version__ = "1.0.1"
+    __version__ = "1.0.2"
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
