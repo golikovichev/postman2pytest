@@ -21,3 +21,9 @@ Thumbs.db
 # IDE
 .idea/
 .vscode/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
