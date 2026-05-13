@@ -1,0 +1,73 @@
+{
+  "info": {
+    "name": "HTTPBin Demo",
+    "_postman_id": "httpbin-demo-001",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Get endpoint",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/get",
+          "host": ["{{base_url}}"],
+          "path": ["get"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('Status is 200', function() { pm.response.to.have.status(200); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Post endpoint with JSON body",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\": \"Mikhail\", \"role\": \"QA Engineer\"}"
+        },
+        "url": {
+          "raw": "{{base_url}}/post",
+          "host": ["{{base_url}}"],
+          "path": ["post"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('Status is 200', function() { pm.response.to.have.status(200); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Status check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/status/204",
+          "host": ["{{base_url}}"],
+          "path": ["status", "204"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('Status is 204', function() { pm.response.to.have.status(204); });"]
+          }
+        }
+      ]
+    }
+  ]
+}
