@@ -33,20 +33,47 @@ def _strip_base_url(url: str) -> str:
     return url
 
 
-def _render_header_value(value: str) -> str:
-    """
-    Render a header value as a Python expression.
+def _escape_fstring_literal(literal: str) -> str:
+    """Escape a literal segment for embedding inside a Python f-string.
 
-    Plain values → JSON string literal: "application/json"
-    Values with ENV_xxx → f-string: f"Bearer {os.environ.get('token', '')}"
+    f-strings interpret backslash, the outer-quote char, and brace pairs.
+    Each must be rewritten so the parser reads the original characters
+    back as data, not as syntax.
+    """
+    return (
+        literal
+        .replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("{", "{{")
+        .replace("}", "}}")
+    )
+
+
+def _render_header_value(value: str) -> str:
+    """Render a header value as a Python expression.
+
+    Plain values become a JSON string literal: "application/json".
+    Values with ENV_xxx become a Python f-string: f"Bearer {os.environ.get('token', '')}"
+
+    Literal portions of the value (everything outside the ENV_xxx tokens)
+    must be escaped before they land inside the f-string. Without this
+    pass, a captured header containing a double quote or a curly brace
+    produces either a broken f-string or, worse, valid Python with extra
+    statements injected after the closing quote.
     """
     import json
 
     if "ENV_" not in value:
         return json.dumps(value)
-    fstring_body = _ENV_VAR_RE.sub(r"{os.environ.get('\1', '')}", value)
-    # Escape any existing backslashes/quotes in the non-ENV portions
-    return f'f"{fstring_body}"'
+
+    parts: list[str] = []
+    cursor = 0
+    for match in _ENV_VAR_RE.finditer(value):
+        parts.append(_escape_fstring_literal(value[cursor:match.start()]))
+        parts.append(f"{{os.environ.get('{match.group(1)}', '')}}")
+        cursor = match.end()
+    parts.append(_escape_fstring_literal(value[cursor:]))
+    return 'f"' + "".join(parts) + '"'
 
 
 def generate(

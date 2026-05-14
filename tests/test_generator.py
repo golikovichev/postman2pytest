@@ -180,3 +180,64 @@ def test_generate_output_is_valid_python(tmp_path):
     code = out.read_text(encoding="utf-8")
     # compile() raises SyntaxError on invalid Python
     compile(code, str(out), "exec")
+
+
+# Adversarial header values (H1 fix - generated f-strings must escape
+# literal portions so a captured header cannot inject Python code).
+
+
+def test_header_value_with_double_quote_is_safe(tmp_path):
+    out = tmp_path / "test_api.py"
+    req = _req(
+        headers={
+            "X-Evil": 'pre"; import os; os.system("evil"); ENV_token "post',
+        }
+    )
+    generate([req], collection_name="API", output_path=out)
+    code = out.read_text(encoding="utf-8")
+    compile(code, str(out), "exec")
+    # The literal portion of the header value must not produce an
+    # importable os.system call site at module level.
+    import ast
+    tree = ast.parse(code)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            fn = node.func
+            target = (
+                f"{fn.value.id}.{fn.attr}"
+                if isinstance(fn, ast.Attribute)
+                and isinstance(fn.value, ast.Name)
+                else None
+            )
+            assert target != "os.system", "Header value injection executed"
+
+
+def test_header_value_with_braces_is_safe(tmp_path):
+    out = tmp_path / "test_api.py"
+    req = _req(
+        headers={"X-Brace": "literal {0} braces with ENV_token suffix"}
+    )
+    generate([req], collection_name="API", output_path=out)
+    code = out.read_text(encoding="utf-8")
+    compile(code, str(out), "exec")
+
+
+def test_header_value_with_backslash_is_safe(tmp_path):
+    out = tmp_path / "test_api.py"
+    req = _req(
+        headers={"X-Slash": "path\\to\\thing ENV_token end"}
+    )
+    generate([req], collection_name="API", output_path=out)
+    code = out.read_text(encoding="utf-8")
+    compile(code, str(out), "exec")
+
+
+def test_header_value_plain_json_string_path_unchanged(tmp_path):
+    """Plain (no ENV_) values should still go through json.dumps and
+    land as a normal Python string literal."""
+    out = tmp_path / "test_api.py"
+    req = _req(headers={"Content-Type": "application/json"})
+    generate([req], collection_name="API", output_path=out)
+    code = out.read_text(encoding="utf-8")
+    assert '"application/json"' in code
+    compile(code, str(out), "exec")
