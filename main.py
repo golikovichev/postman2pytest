@@ -24,10 +24,16 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def filter_requests_by_folder(requests: list[ParsedRequest], folder_name: str) -> list[ParsedRequest]:
+def filter_requests_by_folder(
+    requests: list[ParsedRequest], folder_name: str
+) -> list[ParsedRequest]:
     """Return requests whose parsed folder slug matches the requested name."""
     normalized = folder_name.casefold()
-    return [request for request in requests if request.folder and request.folder.casefold() == normalized]
+    return [
+        request
+        for request in requests
+        if request.folder and request.folder.casefold() == normalized
+    ]
 
 
 def main() -> int:
