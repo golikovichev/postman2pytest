@@ -40,13 +40,7 @@ def _escape_fstring_literal(literal: str) -> str:
     Each must be rewritten so the parser reads the original characters
     back as data, not as syntax.
     """
-    return (
-        literal
-        .replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("{", "{{")
-        .replace("}", "}}")
-    )
+    return literal.replace("\\", "\\\\").replace('"', '\\"').replace("{", "{{").replace("}", "}}")
 
 
 def _render_header_value(value: str) -> str:
@@ -69,7 +63,7 @@ def _render_header_value(value: str) -> str:
     parts: list[str] = []
     cursor = 0
     for match in _ENV_VAR_RE.finditer(value):
-        parts.append(_escape_fstring_literal(value[cursor:match.start()]))
+        parts.append(_escape_fstring_literal(value[cursor : match.start()]))
         parts.append(f"{{os.environ.get('{match.group(1)}', '')}}")
         cursor = match.end()
     parts.append(_escape_fstring_literal(value[cursor:]))

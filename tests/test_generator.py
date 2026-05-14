@@ -199,14 +199,14 @@ def test_header_value_with_double_quote_is_safe(tmp_path):
     # The literal portion of the header value must not produce an
     # importable os.system call site at module level.
     import ast
+
     tree = ast.parse(code)
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             fn = node.func
             target = (
                 f"{fn.value.id}.{fn.attr}"
-                if isinstance(fn, ast.Attribute)
-                and isinstance(fn.value, ast.Name)
+                if isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name)
                 else None
             )
             assert target != "os.system", "Header value injection executed"
@@ -214,9 +214,7 @@ def test_header_value_with_double_quote_is_safe(tmp_path):
 
 def test_header_value_with_braces_is_safe(tmp_path):
     out = tmp_path / "test_api.py"
-    req = _req(
-        headers={"X-Brace": "literal {0} braces with ENV_token suffix"}
-    )
+    req = _req(headers={"X-Brace": "literal {0} braces with ENV_token suffix"})
     generate([req], collection_name="API", output_path=out)
     code = out.read_text(encoding="utf-8")
     compile(code, str(out), "exec")
@@ -224,9 +222,7 @@ def test_header_value_with_braces_is_safe(tmp_path):
 
 def test_header_value_with_backslash_is_safe(tmp_path):
     out = tmp_path / "test_api.py"
-    req = _req(
-        headers={"X-Slash": "path\\to\\thing ENV_token end"}
-    )
+    req = _req(headers={"X-Slash": "path\\to\\thing ENV_token end"})
     generate([req], collection_name="API", output_path=out)
     code = out.read_text(encoding="utf-8")
     compile(code, str(out), "exec")
