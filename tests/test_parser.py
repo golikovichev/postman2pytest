@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 from core.parser import _extract_status, _replace_vars, _slugify, parse_collection
+from main import filter_requests_by_folder
 
 # Helpers
 
@@ -106,6 +107,29 @@ def test_parse_nested_folder(tmp_path):
     requests = parse_collection(_write_collection(tmp_path, _minimal_collection([folder])))
     assert len(requests) == 2
     assert all(r.folder == "users" for r in requests)
+
+
+def test_filter_requests_by_folder_keeps_matching_folder(tmp_path):
+    items = [
+        {"name": "Users", "item": [_simple_request("List users")]},
+        {"name": "Orders", "item": [_simple_request("List orders")]},
+    ]
+    requests = parse_collection(_write_collection(tmp_path, _minimal_collection(items)))
+    filtered = filter_requests_by_folder(requests, "orders")
+    assert [request.name for request in filtered] == ["List orders"]
+
+
+def test_filter_requests_by_folder_is_case_insensitive(tmp_path):
+    folder = {"name": "Orders", "item": [_simple_request("List orders")]}
+    requests = parse_collection(_write_collection(tmp_path, _minimal_collection([folder])))
+    filtered = filter_requests_by_folder(requests, "ORDERS")
+    assert len(filtered) == 1
+
+
+def test_filter_requests_by_folder_unknown_returns_empty(tmp_path):
+    folder = {"name": "Orders", "item": [_simple_request("List orders")]}
+    requests = parse_collection(_write_collection(tmp_path, _minimal_collection([folder])))
+    assert filter_requests_by_folder(requests, "users") == []
 
 
 def test_parse_expected_status_from_test_script(tmp_path):

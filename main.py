@@ -13,7 +13,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from core.generator import generate
-from core.parser import parse_collection
+from core.parser import ParsedRequest, parse_collection
 
 try:
     __version__ = version("postman2pytest")
@@ -22,6 +22,18 @@ except PackageNotFoundError:
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def filter_requests_by_folder(
+    requests: list[ParsedRequest], folder_name: str
+) -> list[ParsedRequest]:
+    """Return requests whose parsed folder slug matches the requested name."""
+    normalized = folder_name.casefold()
+    return [
+        request
+        for request in requests
+        if request.folder and request.folder.casefold() == normalized
+    ]
 
 
 def main() -> int:
@@ -41,6 +53,10 @@ def main() -> int:
         "--base-url",
         help="Override BASE_URL in generated tests (default: reads from BASE_URL env var)",
     )
+    parser.add_argument(
+        "--filter-folder",
+        help="Only generate tests for requests in the named Postman folder (case-insensitive)",
+    )
     args = parser.parse_args()
 
     collection_path = Path(args.collection)
@@ -58,6 +74,12 @@ def main() -> int:
         collection_name = collection_path.stem
 
     requests = parse_collection(collection_path)
+    if args.filter_folder:
+        requests = filter_requests_by_folder(requests, args.filter_folder)
+        if not requests:
+            logger.error("Folder not found or contains no valid requests: %s", args.filter_folder)
+            return 1
+
     if not requests:
         logger.error("No valid requests found in collection. Nothing to generate.")
         return 1

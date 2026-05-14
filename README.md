@@ -53,6 +53,16 @@ BASE_URL=https://staging.example.com pytest generated_tests/test_api.py -v
 | `--collection` | ✅ | Path to Postman Collection v2.1 JSON |
 | `--out` | ✅ | Output path for generated pytest file |
 | `--base-url` | ❌ | Tip printed after generation (does not override env var) |
+| `--filter-folder` | ❌ | Generate tests only for the named Postman folder |
+
+To regenerate tests for one folder, pass its Postman folder name:
+
+```bash
+postman2pytest \
+  --collection data/my_api.postman_collection.json \
+  --out generated_tests/test_users.py \
+  --filter-folder Users
+```
 
 ## How It Works
 
