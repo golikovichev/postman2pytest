@@ -146,7 +146,7 @@ def _parse_item(item: dict, folder: str | None = None) -> list[ParsedRequest]:
                 folder=folder,
             )
         )
-    except Exception as exc:
+    except (KeyError, TypeError, ValueError) as exc:
         logger.warning("Skipping item '%s': %s", item.get("name", "?"), exc)
 
     return results

@@ -57,11 +57,26 @@ def main() -> int:
         "--filter-folder",
         help="Only generate tests for requests in the named Postman folder (case-insensitive)",
     )
+    parser.add_argument(
+        "--max-input-mb",
+        type=int,
+        default=100,
+        help="Refuse to load collections larger than this many MB (default: 100)",
+    )
     args = parser.parse_args()
 
     collection_path = Path(args.collection)
     if not collection_path.exists():
         logger.error("Collection file not found: %s", collection_path)
+        return 1
+
+    size_mb = collection_path.stat().st_size / (1024 * 1024)
+    if size_mb > args.max_input_mb:
+        logger.error(
+            "Collection file is %.1f MB, larger than --max-input-mb %d. Refusing to load.",
+            size_mb,
+            args.max_input_mb,
+        )
         return 1
 
     try:
@@ -70,7 +85,12 @@ def main() -> int:
             .get("info", {})
             .get("name", collection_path.stem)
         )
-    except Exception:
+    except (json.JSONDecodeError, OSError, KeyError) as exc:
+        logger.warning(
+            "Could not read collection name from %s: %s. Falling back to file stem.",
+            collection_path,
+            exc,
+        )
         collection_name = collection_path.stem
 
     requests = parse_collection(collection_path)
