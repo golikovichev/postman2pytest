@@ -64,6 +64,54 @@ postman2pytest \
   --filter-folder Users
 ```
 
+## Examples
+
+### Generate tests for one Postman folder
+
+The bundled `data/sample_collection.json` file includes a `Users` folder and one
+top-level `Health check` request. Generating from the whole collection creates
+three pytest functions:
+
+```bash
+postman2pytest \
+  --collection data/sample_collection.json \
+  --out /tmp/test_all.py
+```
+
+```text
+Generated 3 test(s) -> /tmp/test_all.py
+```
+
+The generated file contains:
+
+```python
+def test_users_get_get_all_users():
+def test_users_post_create_user():
+def test_get_health_check():
+```
+
+To generate only the requests from the `Users` folder, pass `--filter-folder`.
+Folder matching is case-insensitive, so `Users`, `users`, and `USERS` all match
+the same Postman folder:
+
+```bash
+postman2pytest \
+  --collection data/sample_collection.json \
+  --out /tmp/test_users.py \
+  --filter-folder Users
+```
+
+```text
+Generated 2 test(s) -> /tmp/test_users.py
+```
+
+The filtered output contains only the tests from that folder:
+
+```python
+def test_users_get_get_all_users():
+def test_users_post_create_user():
+```
+
 ## How It Works
 
 1. **Parse**: reads the Postman Collection JSON, flattens nested folders into a flat request list
