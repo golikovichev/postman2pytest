@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/golikovichev/postman2pytest/actions/workflows/ci.yml/badge.svg)](https://github.com/golikovichev/postman2pytest/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/postman2pytest)](https://pypi.org/project/postman2pytest/)
-[![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)](https://pypi.org/project/postman2pytest/)
+[![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12%20|%203.13-blue)](https://pypi.org/project/postman2pytest/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 Convert a **Postman Collection v2.1** JSON file into a ready-to-run **pytest** test suite. One command.
@@ -66,11 +66,9 @@ postman2pytest \
 
 ## Examples
 
-### Generate tests for one Postman folder
+### Generate tests for a single folder
 
-The bundled `data/sample_collection.json` file includes a `Users` folder and one
-top-level `Health check` request. Generating from the whole collection creates
-three pytest functions:
+The bundled `data/sample_collection.json` file includes a `Users` folder and one top-level `Health check` request. Generating from the whole collection creates three tests:
 
 ```bash
 postman2pytest \
@@ -82,7 +80,7 @@ postman2pytest \
 Generated 3 test(s) -> /tmp/test_all.py
 ```
 
-The generated file contains:
+The generated file contains tests with folder-prefixed names:
 
 ```python
 def test_users_get_get_all_users():
@@ -90,9 +88,7 @@ def test_users_post_create_user():
 def test_get_health_check():
 ```
 
-To generate only the requests from the `Users` folder, pass `--filter-folder`.
-Folder matching is case-insensitive, so `Users`, `users`, and `USERS` all match
-the same Postman folder:
+To generate only the requests from the `Users` folder, pass `--filter-folder`. Folder matching is case-insensitive, so `Users`, `users`, and `USERS` all match the same folder:
 
 ```bash
 postman2pytest \

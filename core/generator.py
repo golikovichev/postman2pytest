@@ -25,9 +25,14 @@ def _strip_base_url(url: str) -> str:
     """
     Transform ENV_xxx URLs for use in f-strings inside generated tests.
 
-    ENV_base_url/api/v1/users  →  api/v1/users
-    path/ENV_version/users     →  path/{os.environ.get('version', '')}/users
+    ENV_base_url/api/v1/users  ->  api/v1/users
+    path/ENV_version/users     ->  path/{os.environ.get('version', '')}/users
+
+    Absolute URLs (http:// or https://) are returned as-is. The generated
+    test code is expected to detect that and skip BASE_URL prepending.
     """
+    if url.startswith(("http://", "https://")):
+        return url
     url = _ENV_PREFIX_RE.sub("", url)
     url = _ENV_VAR_RE.sub(r"{os.environ.get('\1', '')}", url)
     return url
