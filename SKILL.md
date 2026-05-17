@@ -15,36 +15,32 @@ Read a Postman Collection v2.1 JSON file, write a single pytest module that repl
 
 The collection stays the source of truth. The generated suite is committable code: no Newman runtime, no Postman license, no JavaScript pre-request scripts. Re-run the converter when the collection changes; the file regenerates cleanly.
 
-## When to invoke
-
-Trigger this skill if any of these conditions hold:
-
-- The user mentions a Postman collection, a `.postman_collection.json` file, a Postman v2.1 export, or a Newman setup.
-- The user wants pytest tests generated from an API definition they already have.
-- The user is migrating an API regression suite from Postman/Newman to Python.
-- The user wants their existing Postman documentation to drive CI without rewriting tests by hand.
-
-Do not invoke this skill for OpenAPI specs, HAR files, Insomnia exports, or raw cURL transcripts. Those are different input formats and not supported.
-
 ## Quick start
 
 1. Install the CLI from PyPI:
    ```bash
    pip install postman2pytest
    ```
-2. Run the converter against the collection file:
+2. Verify the collection is Postman v2.1. Open the JSON file and check `"info" → "schema"` contains `v2.1.0`. Older v1 collections must be re-exported from the Postman desktop app first.
+3. Run the converter against the collection file:
    ```bash
    postman2pytest --collection my_api.postman_collection.json --out tests/test_api.py
    ```
-3. Set the base URL the suite should hit (the generated tests read it from the environment, not from the collection's stored `host`):
+4. Set the base URL the suite should hit (the generated tests read it from the environment, not from the collection's stored `host`):
    ```bash
    export BASE_URL=https://api.example.com
    ```
-4. Run the suite:
+5. Run the suite:
    ```bash
    pytest tests/test_api.py -v
    ```
-5. Commit the generated module into the repo. Re-run step 2 whenever the collection changes.
+6. Commit the generated module into the repo. Re-run step 3 whenever the collection changes.
+
+### Error handling
+
+- **Schema mismatch:** the converter exits non-zero with a clear message naming the unsupported schema. Re-export the collection as v2.1 in Postman.
+- **File too large:** `--max-input-mb` (default 100) refuses collections above the limit. Pass a larger value if the collection is genuinely that big, or split it via `--filter-folder`.
+- **Pytest failures on first run:** check `BASE_URL` is set and reachable. The generated module assumes the API is live; it does not mock responses.
 
 ## Inputs and outputs
 
@@ -56,29 +52,48 @@ Do not invoke this skill for OpenAPI specs, HAR files, Insomnia exports, or raw 
 
 **Auth scrubbing:** `Authorization` and other header names that look like credentials are read from environment variables in the generated test, never from the collection. The collection's stored value is replaced with an env-var lookup.
 
-## What it does not do (call out before suggesting)
-
-- **OAuth flows.** Token refresh is not generated. Set the token in the env var externally.
-- **Pre-request scripts.** Postman's JavaScript pre-request scripts are not translated; the generated code is plain Python.
-- **Response-body assertions.** Only the status code is asserted by default. Body assertions live on the v1.1 roadmap.
-- **Environments file.** The Postman environment file is not consumed; the generated suite reads `BASE_URL` and credential env vars only.
-
-If a user needs any of the above, say so honestly and link to the open issue rather than promising a workaround.
-
 ## Example walkthrough
 
-A 12-request Postman collection with three folders (`Users`, `Orders`, `Admin`) produces:
+Bundled `data/sample_collection.json` (Sample API: one folder `Users` with two requests plus a top-level `Health check`).
 
-- One pytest module of about 200 lines.
-- 12 test functions named like `test_users_get_user_by_id`, `test_orders_create_order`.
-- Skipped tests for requests with no saved example response (the collection lacks the expected status to assert against).
-- A `conftest.py`-free design: the module is self-contained, requires only `requests` and `pytest` at runtime.
+```text
+$ postman2pytest --collection data/sample_collection.json --out /tmp/test_all.py
+INFO: Parsed 3 requests from collection
+INFO: Written 3 tests to /tmp/test_all.py
 
-Run the suite, see the green dots, commit the file. The collection-to-tests round trip is the unit of work.
+Generated 3 test(s) -> /tmp/test_all.py
+  Run with: pytest /tmp/test_all.py -v
+  Tip: set BASE_URL env var to point at your API
+```
+
+The generated file contains three test functions:
+
+```python
+def test_users_get_get_all_users():
+def test_users_post_create_user():
+def test_get_health_check():
+```
+
+Filtering to a single folder shrinks the output:
+
+```text
+$ postman2pytest --collection data/sample_collection.json --out /tmp/test_users.py --filter-folder Users
+INFO: Parsed 3 requests from collection
+INFO: Written 2 tests to /tmp/test_users.py
+
+Generated 2 test(s) -> /tmp/test_users.py
+```
+
+Folder matching is case-insensitive: `Users`, `users`, and `USERS` all select the same folder.
+
+The generated module is self-contained. It imports `os`, `pytest`, and `requests`; nothing else. No `conftest.py` is required.
 
 ## Limitations and known gaps
 
-See open issues on the repo for current roadmap. The most-requested missing features are tracked there with `enhancement` labels.
+- **OAuth flows.** Token refresh is not generated. Set the token in the env var named by the collection's `Authorization` header (the generated test reads it via `os.environ.get("token", "")` or the header-name equivalent).
+- **Pre-request scripts.** Postman's JavaScript pre-request scripts are not translated. If the original request depended on a script to compute a header or signature, the generated test will send the literal placeholder and fail at runtime; rewrite that piece in Python before running.
+- **Response-body assertions.** Only the HTTP status code is asserted. Body content is not validated; if a request returns 200 with a wrong payload, the generated test passes anyway.
+- **Environments file.** Postman environment exports (`*.postman_environment.json`) are not consumed. The generated suite reads `BASE_URL` and credential env vars only.
 
 ## References
 
