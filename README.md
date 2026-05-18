@@ -144,6 +144,61 @@ def test_get_users():
 - ✅ Falls back to 200 when no status assertion found
 - ✅ Malformed items skipped with a warning. Rest of collection still generated
 
+## Limitations
+
+Honest scope so you know what to expect before pointing the tool at a real
+collection.
+
+- ❌ **Postman environments are not read.** `{{baseUrl}}` and friends are
+  passed through verbatim into the generated `url` strings. Set the
+  `BASE_URL` env var at test time, or post-process the file to swap in the
+  values you care about.
+- ❌ **Pre-request scripts are skipped.** Auth that depends on `pm.sendRequest`
+  to grab a token before each call (e.g. OAuth client-credentials flows
+  refreshing per request) needs manual translation into a pytest fixture.
+- ❌ **Test scripts beyond a status assertion are dropped.** Only
+  `pm.response.to.have.status(N)` is extracted; chai-style body shape checks,
+  custom JS, and `pm.variables.set(...)` calls do not survive the conversion.
+- ❌ **Form-data and `urlencoded` bodies are not generated yet.** Only raw
+  JSON bodies are written into the test file. Multipart uploads, file
+  attachments, and form fields are recognised by the parser but left out of
+  the rendered request call. Tracked in
+  [issue #1](https://github.com/golikovichev/postman2pytest/issues/1).
+- ❌ **Cookies, certificates, and per-request proxy settings are ignored.**
+- ⚠ **Variable substitution is shallow.** Path variables (`/users/:id`)
+  become `{id}` placeholders; collection-level variables are not resolved.
+- ⚠ **Generated `BASE_URL` defaults to an empty string.** Tests that hit a
+  full URL in the Postman item still resolve, but bare path items will fail
+  until the env var is set.
+
+If a missing feature is blocking you, please open an issue with a redacted
+slice of the collection that demonstrates it.
+
+## Roadmap
+
+Short list of what is next, roughly in priority order. Tracked in detail on
+the [issues board](https://github.com/golikovichev/postman2pytest/issues).
+
+- **Form-data and `urlencoded` body support**: currently parsed but not
+  rendered. Blocking most file-upload and OAuth-token-endpoint test cases.
+  ([#1](https://github.com/golikovichev/postman2pytest/issues/1))
+- **Pre-request script translation, scoped scope**: surface the script,
+  even as a `pytest.fixture` stub, so the operator does not lose the auth
+  context silently.
+- **`--ai-edges` mode**: opt-in pass that asks an LLM to fill in edge
+  cases (boundary numbers, missing required fields, type-confusion payloads)
+  on top of the deterministic happy-path tests.
+  ([#2](https://github.com/golikovichev/postman2pytest/issues/2))
+- **Environment file ingestion**: accept Postman environment JSON exports
+  and write a matching `conftest.py` so `{{baseUrl}}` and similar resolve
+  through pytest variables.
+- **Allure step annotations toggle**: `--allure` flag that wraps each
+  generated test in `allure.step(...)` blocks so the report shows the
+  Postman folder structure.
+
+Contributions to any of the above are welcome. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.
+
 ## Running tests
 
 ```bash
