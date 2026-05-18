@@ -103,3 +103,46 @@ jobs:
         run: |
           /tmp/smoke-venv/bin/postman2pytest --collection data/sample_collection.json --out /tmp/smoke_test.py || true
           test -f /tmp/smoke_test.py && head -20 /tmp/smoke_test.py || echo "Sample collection missing, skipping e2e step (not a failure)"
+
+  stress-test:
+    # Realistic-scale guard: real Postman exports often hit 500-2000 requests
+    # with mixed encoding folder names. Runs only on main pushes (skip PR
+    # noise) so the CI bill stays small while still catching regressions in
+    # generation speed, name sanitiser uniqueness, and pytest collection.
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install postman2pytest
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Generate 500-request synthetic collection
+        run: python scripts/generate_stress_collection.py --requests 500 --out stress.json
+
+      - name: Generate pytest module from stress collection
+        run: |
+          start=$(date +%s)
+          python main.py --collection stress.json --out stress_tests.py
+          end=$(date +%s)
+          echo "Generation took $((end - start)) seconds"
+          test $((end - start)) -lt 30 || (echo "Generation took longer than 30s, regression"; exit 1)
+
+      - name: Assert 500 unique test names
+        run: |
+          total=$(grep -c '^def test_' stress_tests.py)
+          unique=$(grep '^def test_' stress_tests.py | sort -u | wc -l)
+          echo "Total: $total, Unique: $unique"
+          test "$total" = "500" || (echo "Expected 500 tests, got $total"; exit 1)
+          test "$total" = "$unique" || (echo "Duplicate test names detected"; exit 1)
+
+      - name: Pytest collect-only on generated module
+        run: pytest --collect-only -q stress_tests.py
