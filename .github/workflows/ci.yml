@@ -89,17 +89,20 @@ jobs:
           python -c "import zipfile, glob; w=glob.glob('dist/*.whl')[0]; print(f'Wheel: {w}'); [print(f'  {n}') for n in zipfile.ZipFile(w).namelist()]"
 
       - name: Install from wheel in clean venv
+        shell: bash
         run: |
           python -m venv /tmp/smoke-venv
           /tmp/smoke-venv/bin/pip install --upgrade pip
           /tmp/smoke-venv/bin/pip install dist/*.whl
 
       - name: CLI entry point smoke
+        shell: bash
         run: |
           /tmp/smoke-venv/bin/postman2pytest --help
           /tmp/smoke-venv/bin/postman2pytest --version
 
       - name: End-to-end run on sample collection
+        shell: bash
         run: |
           /tmp/smoke-venv/bin/postman2pytest --collection data/sample_collection.json --out /tmp/smoke_test.py || true
           test -f /tmp/smoke_test.py && head -20 /tmp/smoke_test.py || echo "Sample collection missing, skipping e2e step (not a failure)"
