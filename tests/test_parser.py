@@ -300,3 +300,92 @@ def test_parse_emits_warning_on_disambiguation(tmp_path, caplog):
     parse_collection(_write_collection(tmp_path, _minimal_collection([folder])))
     warnings = [r for r in caplog.records if r.levelname == "WARNING"]
     assert any("Disambiguating" in r.message for r in warnings)
+
+
+# Coverage gap closers (added 2026-05-19)
+
+
+def test_folder_with_unsluggable_name_becomes_empty(tmp_path):
+    """Folder name that slugifies to 'unnamed' is treated as no folder.
+
+    Covers parser.py L107: `if folder_name == "unnamed": folder_name = ""`.
+    """
+    folder = {
+        "name": "?",  # _slugify('?') → 'unnamed'
+        "item": [_simple_request("List users", url="/users")],
+    }
+    requests = parse_collection(_write_collection(tmp_path, _minimal_collection([folder])))
+    assert len(requests) == 1
+    assert requests[0].folder is None
+
+
+def test_malformed_request_skipped_with_warning(tmp_path, caplog):
+    """Item that raises TypeError during parse is skipped with a warning.
+
+    Covers parser.py L149-150: `except (KeyError, TypeError, ValueError)` branch.
+    Header with non-string value triggers re.sub TypeError inside _replace_vars.
+    """
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="core.parser")
+    bad_item = {
+        "name": "Bad header value",
+        "request": {
+            "method": "GET",
+            "header": [{"key": "X-Bad", "value": 12345}],  # int, not str
+            "url": {"raw": "/api"},
+        },
+    }
+    good_item = _simple_request("Good", url="/ok")
+    requests = parse_collection(
+        _write_collection(tmp_path, _minimal_collection([bad_item, good_item]))
+    )
+    # Good request survives, bad one is skipped
+    assert len(requests) == 1
+    assert requests[0].name == "Good"
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert any("Skipping item 'Bad header value'" in r.message for r in warnings)
+
+
+def test_disambiguate_preserves_non_colliding_names(tmp_path):
+    """When some requests collide and others do not, non-colliding keep their base.
+
+    Covers parser.py L189-190: `if base not in duplicates: req.final_test_name = base; continue`.
+    """
+    folder = {
+        "name": "API",
+        "item": [
+            {"name": "", "request": {"method": "POST", "header": [], "url": {"raw": "/a"}}},
+            {"name": "", "request": {"method": "POST", "header": [], "url": {"raw": "/b"}}},
+            _simple_request("Unique", url="/unique"),
+        ],
+    }
+    requests = parse_collection(_write_collection(tmp_path, _minimal_collection([folder])))
+    assert len(requests) == 3
+    names = [r.test_name for r in requests]
+    # The unique one has no suffix; the two colliding ones get _1 and _2.
+    unique_match = [n for n in names if n.endswith("unique")]
+    suffixed = [n for n in names if re.search(r"_\d+$", n)]
+    assert len(unique_match) == 1
+    assert len(suffixed) == 2
+
+
+def test_unknown_schema_logs_warning(tmp_path, caplog):
+    """Schema other than v2.0/v2.1 logs a warning but still parses.
+
+    Covers parser.py L205: `logger.warning("Unexpected collection schema: %s. ...")`.
+    """
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="core.parser")
+    data = {
+        "info": {
+            "name": "Weird",
+            "schema": "https://schema.getpostman.com/json/collection/v3.0.0/collection.json",
+        },
+        "item": [_simple_request("Anything", url="/x")],
+    }
+    requests = parse_collection(_write_collection(tmp_path, data))
+    assert len(requests) == 1
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert any("Unexpected collection schema" in r.message for r in warnings)

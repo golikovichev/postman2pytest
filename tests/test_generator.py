@@ -237,3 +237,31 @@ def test_header_value_plain_json_string_path_unchanged(tmp_path):
     code = out.read_text(encoding="utf-8")
     assert '"application/json"' in code
     compile(code, str(out), "exec")
+
+
+# Coverage gap closer (added 2026-05-19)
+
+
+def test_absolute_https_url_passthrough(tmp_path):
+    """Absolute http/https URL must be returned as-is by _normalise_url.
+
+    Covers generator.py L35: `if url.startswith(("http://", "https://")): return url`.
+    The generated test code is expected to detect absolute and skip BASE_URL prepend.
+    """
+    out = tmp_path / "test_api.py"
+    req = _req(url="https://api.example.com/health")
+    generate([req], collection_name="API", output_path=out)
+    code = out.read_text(encoding="utf-8")
+    # URL appears verbatim in generated source, no BASE_URL prefix
+    assert "https://api.example.com/health" in code
+    compile(code, str(out), "exec")
+
+
+def test_absolute_http_url_passthrough(tmp_path):
+    """Same as above but for http:// scheme."""
+    out = tmp_path / "test_api.py"
+    req = _req(url="http://internal-svc/api/v1/ping")
+    generate([req], collection_name="API", output_path=out)
+    code = out.read_text(encoding="utf-8")
+    assert "http://internal-svc/api/v1/ping" in code
+    compile(code, str(out), "exec")
