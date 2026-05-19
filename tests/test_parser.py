@@ -324,6 +324,16 @@ def test_malformed_request_skipped_with_warning(tmp_path, caplog):
 
     Covers parser.py L149-150: `except (KeyError, TypeError, ValueError)` branch.
     Header with non-string value triggers re.sub TypeError inside _replace_vars.
+
+    Brittleness note: if `_replace_vars` ever coerces values via `str(value)`,
+    this specific TypeError trigger stops firing and the request will parse
+    successfully. The assertion below (`len(requests) == 1` + only 'Good'
+    survives) would fail loudly in that case — replace this trigger with
+    another shape that still raises one of (KeyError, TypeError, ValueError)
+    inside the try block. Candidates: header element with non-dict shape
+    (e.g. `"header": ["not-a-dict"]` → `h.get("key")` raises AttributeError —
+    note that AttributeError is NOT caught here, so it would need a different
+    fix), or set `"event": "not-a-list"` so `_extract_status` iteration fails.
     """
     import logging
 

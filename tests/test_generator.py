@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.generator import generate
+from core.generator import _render_url, _strip_base_url, generate
 from core.parser import ParsedRequest
 
 # Fixtures
@@ -252,8 +252,12 @@ def test_absolute_https_url_passthrough(tmp_path):
     req = _req(url="https://api.example.com/health")
     generate([req], collection_name="API", output_path=out)
     code = out.read_text(encoding="utf-8")
-    # URL appears verbatim in generated source, no BASE_URL prefix
+    # URL appears verbatim
     assert "https://api.example.com/health" in code
+    # Negative assertions: no BASE_URL concatenation in front of the absolute URL
+    assert 'BASE_URL + "https://api.example.com' not in code
+    assert 'f"{BASE_URL}https://api.example.com' not in code
+    assert 'f"{BASE_URL}/https://api.example.com' not in code
     compile(code, str(out), "exec")
 
 
@@ -264,4 +268,44 @@ def test_absolute_http_url_passthrough(tmp_path):
     generate([req], collection_name="API", output_path=out)
     code = out.read_text(encoding="utf-8")
     assert "http://internal-svc/api/v1/ping" in code
+    assert 'BASE_URL + "http://internal-svc' not in code
+    assert 'f"{BASE_URL}http://internal-svc' not in code
     compile(code, str(out), "exec")
+
+
+# Direct unit tests for the URL filters (added 2026-05-19)
+# `_render_url` is the primary template entry point; `_strip_base_url`
+# remains exported as a Jinja filter for backward compatibility и
+# is reached directly only by external callers / custom templates.
+
+
+def test_strip_base_url_returns_absolute_url_as_is():
+    """`_strip_base_url` was designed to passthrough absolute URLs.
+
+    The bug surfaced 19.05: the template did not honour the passthrough
+    and prepended {BASE_URL}/ anyway. `_render_url` now routes around
+    that. Direct callers (custom Jinja templates) still see passthrough.
+    """
+    assert _strip_base_url("https://api.example.com/x") == "https://api.example.com/x"
+    assert _strip_base_url("http://internal/y") == "http://internal/y"
+
+
+def test_strip_base_url_strips_env_prefix():
+    """Relative URL with ENV_base_url prefix is stripped clean."""
+    assert _strip_base_url("ENV_base_url/api/v1/users") == "api/v1/users"
+
+
+def test_strip_base_url_interpolates_inner_env_var():
+    """Mid-path ENV_xxx becomes os.environ.get('xxx', '')."""
+    out = _strip_base_url("path/ENV_version/users")
+    assert out == "path/{os.environ.get('version', '')}/users"
+
+
+def test_render_url_absolute_emits_json_literal():
+    """Absolute URL goes through json.dumps so it is a plain Python string."""
+    assert _render_url("https://api.example.com/x") == '"https://api.example.com/x"'
+
+
+def test_render_url_relative_emits_base_url_fstring():
+    """Relative URL builds an f-string with the BASE_URL prefix."""
+    assert _render_url("ENV_base_url/api/v1/users") == 'f"{BASE_URL}/api/v1/users"'

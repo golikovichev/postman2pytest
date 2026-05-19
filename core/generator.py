@@ -28,14 +28,34 @@ def _strip_base_url(url: str) -> str:
     ENV_base_url/api/v1/users  ->  api/v1/users
     path/ENV_version/users     ->  path/{os.environ.get('version', '')}/users
 
-    Absolute URLs (http:// or https://) are returned as-is. The generated
-    test code is expected to detect that and skip BASE_URL prepending.
+    Absolute URLs (http:// or https://) are returned as-is. Note: this filter
+    is no longer the only entry point — see _render_url, which routes
+    absolute URLs around BASE_URL prepending entirely.
     """
     if url.startswith(("http://", "https://")):
         return url
     url = _ENV_PREFIX_RE.sub("", url)
     url = _ENV_VAR_RE.sub(r"{os.environ.get('\1', '')}", url)
     return url
+
+
+def _render_url(url: str) -> str:
+    """Render a URL as a Python expression for the generated test code.
+
+    Absolute URL (http:// or https://) -> JSON string literal, no BASE_URL.
+    Relative URL -> f-string with `{BASE_URL}/` prefix, interpolating any
+    ENV_xxx tokens as os.environ.get('xxx', '') lookups.
+
+    Closes the bug where absolute URLs (Postman collections that mix
+    internal endpoints with third-party API calls) were emitted as
+    f"{BASE_URL}/https://...", producing a broken request URL at runtime.
+    """
+    import json
+
+    if url.startswith(("http://", "https://")):
+        return json.dumps(url)
+    stripped = _strip_base_url(url)
+    return 'f"{BASE_URL}/' + stripped + '"'
 
 
 def _escape_fstring_literal(literal: str) -> str:
@@ -96,6 +116,7 @@ def generate(
     )
     env.filters["tojson"] = _to_python_repr
     env.filters["strip_base_url"] = _strip_base_url
+    env.filters["render_url"] = _render_url
     env.filters["render_header_value"] = _render_header_value
 
     template = env.get_template("test_collection.jinja2")
