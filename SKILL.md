@@ -11,9 +11,7 @@ metadata:
 
 # postman2pytest
 
-Read a Postman Collection v2.1 JSON file, write a single pytest module that replays every request and asserts on the response.
-
-The collection stays the source of truth. The generated suite is committable code: no Newman runtime, no Postman license, no JavaScript pre-request scripts. Re-run the converter when the collection changes; the file regenerates cleanly.
+Read a Postman Collection v2.1 JSON file, write a single pytest module that replays every request and asserts on the response. The collection stays the source of truth; the generated suite is committable code. Re-run the converter when the collection changes.
 
 ## Quick start
 
@@ -44,8 +42,6 @@ The collection stays the source of truth. The generated suite is committable cod
 
 ## Inputs and outputs
 
-**Input:** a Postman Collection v2.1 JSON file. Older v1 collections are not supported; convert them in the Postman desktop app first.
-
 **Output:** a single pytest module. One test function per request in the collection. Folder hierarchy is preserved in test names via underscores. Headers, query params, JSON request body, and basic auth header are emitted verbatim. The HTTP status code is asserted against the example saved in the collection.
 
 **Filtering:** pass `--filter-folder NAME` to generate tests only for one Postman folder. Useful for splitting a large collection across multiple suites.
@@ -54,19 +50,7 @@ The collection stays the source of truth. The generated suite is committable cod
 
 ## Example walkthrough
 
-Bundled `data/sample_collection.json` (Sample API: one folder `Users` with two requests plus a top-level `Health check`).
-
-```text
-$ postman2pytest --collection data/sample_collection.json --out /tmp/test_all.py
-INFO: Parsed 3 requests from collection
-INFO: Written 3 tests to /tmp/test_all.py
-
-Generated 3 test(s) -> /tmp/test_all.py
-  Run with: pytest /tmp/test_all.py -v
-  Tip: set BASE_URL env var to point at your API
-```
-
-The generated file contains three test functions:
+A collection with one folder `Users` (two requests) and a top-level `Health check` request produces three test functions:
 
 ```python
 def test_users_get_get_all_users():
@@ -74,37 +58,22 @@ def test_users_post_create_user():
 def test_get_health_check():
 ```
 
-Filtering to a single folder shrinks the output:
+Filtering to a single folder shrinks the output to just the two `Users` tests:
 
-```text
-$ postman2pytest --collection data/sample_collection.json --out /tmp/test_users.py --filter-folder Users
-INFO: Parsed 3 requests from collection
-INFO: Written 2 tests to /tmp/test_users.py
-
-Generated 2 test(s) -> /tmp/test_users.py
+```bash
+postman2pytest --collection my_api.postman_collection.json --out /tmp/test_users.py --filter-folder Users
 ```
 
 Folder matching is case-insensitive: `Users`, `users`, and `USERS` all select the same folder.
 
 The generated module is self-contained. It imports `os`, `pytest`, and `requests`; nothing else. No `conftest.py` is required.
 
-## Testing at scale
-
-For stress runs against a large generated suite, the bundle ships `scripts/generate_stress_collection.py`. It writes a synthetic Postman v2.1 collection with hundreds of requests so the converter and the resulting pytest module can be benchmarked without touching a real API:
-
-```bash
-python scripts/generate_stress_collection.py --requests 500 --out data/stress_collection_500.json
-postman2pytest --collection data/stress_collection_500.json --out tests/test_stress.py
-```
-
-Useful when checking memory footprint, slug collisions, or CI runtime on a realistic suite size.
-
 ## Limitations and known gaps
 
-- **OAuth flows.** Token refresh is not generated. Set the token in the env var named by the collection's `Authorization` header (the generated test reads it via `os.environ.get("token", "")` or the header-name equivalent).
-- **Pre-request scripts.** Postman's JavaScript pre-request scripts are not translated. If the original request depended on a script to compute a header or signature, the generated test will send the literal placeholder and fail at runtime; rewrite that piece in Python before running.
-- **Response-body assertions.** Only the HTTP status code is asserted. Body content is not validated; if a request returns 200 with a wrong payload, the generated test passes anyway.
-- **Environments file.** Postman environment exports (`*.postman_environment.json`) are not consumed. The generated suite reads `BASE_URL` and credential env vars only.
+- **OAuth flows:** Token refresh is not generated. Set the token in the env var named by the collection's `Authorization` header.
+- **Pre-request scripts:** Postman's JavaScript pre-request scripts are not translated. Rewrite any script-computed headers or signatures in Python before running.
+- **Response-body assertions:** Only the HTTP status code is asserted. Body content is not validated.
+- **Environments file:** Postman environment exports (`*.postman_environment.json`) are not consumed. The generated suite reads `BASE_URL` and credential env vars only.
 
 ## References
 
