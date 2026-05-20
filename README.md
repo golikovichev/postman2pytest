@@ -206,6 +206,23 @@ pip install pytest
 pytest tests/ -v
 ```
 
+## Related projects and patterns
+
+Once `postman2pytest` has generated your suite, the next questions are
+usually «how do I structure fixtures across all these requests» and
+«how do I run them under async with shared auth state». The
+[tessl-labs/pytest-api-testing](https://tessl.io/registry/tessl-labs/pytest-api-testing)
+skill on the Tessl Registry collects the conventions that worked for
+that follow-on layer: httpx `AsyncClient` setup, `conftest.py` fixture
+shape, database isolation, parametrize patterns for edge cases, and
+auth-flow handling. Useful reference if your generated tests grow
+beyond the request-by-request shape this tool emits.
+
+Sister projects in the same workspace:
+
+- [secure-log2test](https://github.com/golikovichev/secure-log2test): same idea but the input is Kibana / Elasticsearch JSON logs instead of Postman collections.
+- [pytest-conversational](https://github.com/golikovichev/pytest-conversational): pytest plugin for multi-turn dialogue testing.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
