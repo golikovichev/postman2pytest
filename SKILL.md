@@ -21,7 +21,7 @@ The collection stays the source of truth. The generated suite is committable cod
    ```bash
    pip install postman2pytest
    ```
-2. Verify the collection is Postman v2.1. Open the JSON file and check `"info" → "schema"` contains `v2.1.0`. Older v1 collections must be re-exported from the Postman desktop app first.
+2. Verify the collection is Postman v2.1. Open the JSON file and check `"info" → "schema"` contains `v2.1.0`.
 3. Run the converter against the collection file:
    ```bash
    postman2pytest --collection my_api.postman_collection.json --out tests/test_api.py
@@ -87,6 +87,17 @@ Generated 2 test(s) -> /tmp/test_users.py
 Folder matching is case-insensitive: `Users`, `users`, and `USERS` all select the same folder.
 
 The generated module is self-contained. It imports `os`, `pytest`, and `requests`; nothing else. No `conftest.py` is required.
+
+## Testing at scale
+
+For stress runs against a large generated suite, the bundle ships `scripts/generate_stress_collection.py`. It writes a synthetic Postman v2.1 collection with hundreds of requests so the converter and the resulting pytest module can be benchmarked without touching a real API:
+
+```bash
+python scripts/generate_stress_collection.py --requests 500 --out data/stress_collection_500.json
+postman2pytest --collection data/stress_collection_500.json --out tests/test_stress.py
+```
+
+Useful when checking memory footprint, slug collisions, or CI runtime on a realistic suite size.
 
 ## Limitations and known gaps
 
