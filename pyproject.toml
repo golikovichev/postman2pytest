@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "postman2pytest"
-version = "1.0.2"
+version = "1.1.0"
 description = "Convert Postman Collection v2.1 JSON files into executable pytest test suites"
 readme = "README.md"
 license = { text = "MIT" }
