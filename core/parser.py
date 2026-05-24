@@ -40,7 +40,7 @@ def _slugify(text: str) -> str:
     return slug or "unnamed"
 
 
-def _extract_status(events: list[dict]) -> int | None:
+def _extract_status(events: list[dict[str, Any]]) -> int | None:
     """
     Try to extract expected status code from Postman test scripts.
     Looks for: pm.response.to.have.status(201)
@@ -96,7 +96,7 @@ class ParsedRequest(BaseModel):
         return f"test_{self.method.lower()}_{name_slug}"
 
 
-def _parse_item(item: dict, folder: str | None = None) -> list[ParsedRequest]:
+def _parse_item(item: dict[str, Any], folder: str | None = None) -> list[ParsedRequest]:
     """Recursively parse a Postman item (request or folder)."""
     results: list[ParsedRequest] = []
 
