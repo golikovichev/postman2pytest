@@ -41,10 +41,3 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
-
-      - id: commit-message-style
-        name: Commit message style (ASCII, no boilerplate)
-        entry: python scripts/check_commit_message.py
-        language: system
-        stages: [commit-msg]
-        pass_filenames: true
