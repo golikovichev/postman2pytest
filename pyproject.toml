@@ -75,4 +75,3 @@ strict = true
 ignore_missing_imports = true
 exclude = ["tests/generated/", "data/"]
 files = ["core", "main.py"]
-

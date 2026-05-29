@@ -6,7 +6,7 @@ Detailed inputs, outputs, CLI flags, filters, auth scrubbing, limitations, and t
 
 **Input:** a Postman Collection v2.1 JSON export. The collection schema must include `"info" → "schema"` ending in `v2.1.0`. Older schemas (v2.0, v1.0) are not converted; re-export the collection from current Postman to upgrade.
 
-**Output:** a single pytest module. One test function per request in the collection. Folder hierarchy is preserved in test names via underscores. Headers, query params, JSON request body, and basic auth header are emitted verbatim. The HTTP status code is asserted against the example saved in the collection.
+**Output:** a single pytest module. One test function per request in the collection. Folder hierarchy is preserved in test names using `_` separators. Headers, query params, JSON request body, and basic auth header are emitted verbatim. The HTTP status code is asserted against the example saved in the collection.
 
 **Auth scrubbing:** `Authorization` and other header names that look like credentials are read from environment variables in the generated test, never from the collection. The collection's stored value is replaced with an env-var lookup like `os.environ["AUTHORIZATION"]`.
 

@@ -226,6 +226,7 @@ Sister projects in the same workspace:
 
 - [secure-log2test](https://github.com/golikovichev/secure-log2test): same idea but the input is Kibana / Elasticsearch JSON logs instead of Postman collections.
 - [pytest-conversational](https://github.com/golikovichev/pytest-conversational): pytest plugin for multi-turn dialogue testing.
+- [phoenix2pytest](https://github.com/golikovichev/phoenix2pytest): same idea but the input is labeled LLM failure traces from Arize Phoenix instead of Postman collections.
 
 ## Contributing
 

@@ -29,8 +29,8 @@ def _strip_base_url(url: str) -> str:
     path/ENV_version/users     ->  path/{os.environ.get('version', '')}/users
 
     Absolute URLs (http:// or https://) are returned as-is. Note: this filter
-    is no longer the only entry point — see _render_url, which routes
-    absolute URLs around BASE_URL prepending entirely.
+    is no longer the only entry point. See _render_url, which routes absolute
+    URLs around BASE_URL prepending entirely.
     """
     if url.startswith(("http://", "https://")):
         return url
