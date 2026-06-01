@@ -27,3 +27,6 @@ Thumbs.db
 .coverage.*
 htmlcov/
 coverage.xml
+
+# graphify-generated knowledge graph (local AST extraction, not committed)
+graphify-out/
