@@ -214,8 +214,8 @@ pytest tests/ -v
 ## Related projects and patterns
 
 Once `postman2pytest` has generated your suite, the next questions are
-usually «how do I structure fixtures across all these requests» and
-«how do I run them under async with shared auth state». The
+usually "how do I structure fixtures across all these requests" and
+"how do I run them under async with shared auth state". The
 [tessl-labs/pytest-api-testing](https://tessl.io/registry/tessl-labs/pytest-api-testing)
 skill on the Tessl Registry collects the conventions that worked for
 that follow-on layer: httpx `AsyncClient` setup, `conftest.py` fixture
