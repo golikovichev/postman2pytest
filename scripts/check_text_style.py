@@ -29,6 +29,7 @@ from pathlib import Path
 # Files we never want to scan even if pre-commit hands them to us.
 SKIP_NAMES = {
     "check_text_style.py",  # this script lists the patterns by design
+    "test_check_text_style.py",  # its tests carry sample inputs by design
     "CHANGELOG.md",
     "CHANGES.md",
 }
@@ -93,6 +94,25 @@ BUZZWORD_PATTERN = re.compile(
 _CYR_V = "в"
 MIXED_SCRIPT_PATTERN = re.compile(rf"\b{_CYR_V}\s+[a-z]")
 
+# Homoglyph noise: a single word that mixes Latin and Cyrillic letters. Many
+# Cyrillic letters (a, e, o, c, p, x, ...) render identically to Latin ones, so
+# a word like "latency" with one Cyrillic letter swapped in looks correct but is
+# a copy-paste or homoglyph artifact. A token that contains both scripts at once
+# is almost never legitimate, while a wholly Cyrillic word (real Russian text) is
+# left alone. The range bounds are built with chr() so this line stays ASCII.
+_CYRILLIC_RANGE = chr(0x0400) + "-" + chr(0x04FF)
+WORD_TOKEN_PATTERN = re.compile(rf"[A-Za-z{_CYRILLIC_RANGE}]+")
+_LATIN_LETTER = re.compile(r"[A-Za-z]")
+_CYRILLIC_LETTER = re.compile(rf"[{_CYRILLIC_RANGE}]")
+
+
+def find_mixed_script_word(line: str) -> str | None:
+    """Return the first token mixing Latin and Cyrillic letters, else None."""
+    for token in WORD_TOKEN_PATTERN.findall(line):
+        if _LATIN_LETTER.search(token) and _CYRILLIC_LETTER.search(token):
+            return token
+    return None
+
 
 def scan_file(path: Path) -> list[str]:
     """Return a list of human-readable findings for one file."""
@@ -119,6 +139,12 @@ def scan_file(path: Path) -> list[str]:
             )
         if MIXED_SCRIPT_PATTERN.search(line):
             findings.append(f"{path}:{lineno}: Cyrillic 'в' next to a Latin word (use ASCII 'in')")
+        mixed = find_mixed_script_word(line)
+        if mixed:
+            findings.append(
+                f"{path}:{lineno}: mixed-script word {mixed!r} "
+                "(Latin and Cyrillic letters in one word - likely a homoglyph or copy-paste artifact)"
+            )
     return findings
 
 
