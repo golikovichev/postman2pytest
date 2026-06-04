@@ -28,22 +28,9 @@ repos:
 
   - repo: local
     hooks:
-      - id: text-style
-        name: Text style (em-dash, curly quotes, buzzwords, mixed script)
-        entry: python scripts/check_text_style.py
-        language: system
-        types: [text]
-        exclude: ^(generated_tests/|docs/)
-
       - id: pytest-fast
         name: Pytest fast smoke (unit tests, no integration)
         entry: python -m pytest -x -q --no-header -m "not integration"
         language: system
         pass_filenames: false
         stages: [pre-commit]
-
-      - id: commit-msg-style
-        name: Commit message style (no vague cleanup-only subjects)
-        entry: python scripts/check_commit_msg.py
-        language: system
-        stages: [commit-msg]

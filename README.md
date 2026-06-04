@@ -164,11 +164,15 @@ collection.
 - ❌ **Test scripts beyond a status assertion are dropped.** Only
   `pm.response.to.have.status(N)` is extracted; chai-style body shape checks,
   custom JS, and `pm.variables.set(...)` calls do not survive the conversion.
-- ❌ **Form-data and `urlencoded` bodies are not generated yet.** Only raw
-  JSON bodies are written into the test file. Multipart uploads, file
-  attachments, and form fields are recognised by the parser but left out of
-  the rendered request call. Tracked in
+- ⚠ **Multipart file uploads are not generated yet.** Text fields in
+  `urlencoded` and `formdata` bodies are now rendered as a `data={...}`
+  argument on the request. File-type form fields (uploads) are still skipped.
+  Tracked in
   [issue #1](https://github.com/golikovichev/postman2pytest/issues/1).
+- ⚠ **Form bodies render as `data=` (urlencoded).** Repeated form keys collapse
+  to the last value, and a hand-set `multipart/form-data` Content-Type header
+  will not match the urlencoded body. Adjust by hand if your endpoint needs
+  multipart or multi-value keys.
 - ❌ **Cookies, certificates, and per-request proxy settings are ignored.**
 - ⚠ **Variable substitution is shallow.** Path variables (`/users/:id`)
   become `{id}` placeholders; collection-level variables are not resolved.
@@ -184,8 +188,9 @@ slice of the collection that demonstrates it.
 Short list of what is next, roughly in priority order. Tracked in detail on
 the [issues board](https://github.com/golikovichev/postman2pytest/issues).
 
-- **Form-data and `urlencoded` body support**: currently parsed but not
-  rendered. Blocking most file-upload and OAuth-token-endpoint test cases.
+- **Multipart file upload support**: `urlencoded` and `formdata` text fields
+  now render as `data={...}` (OAuth-token-endpoint cases work). File-type
+  upload fields are still skipped.
   ([#1](https://github.com/golikovichev/postman2pytest/issues/1))
 - **Pre-request script translation, scoped scope**: surface the script,
   even as a `pytest.fixture` stub, so the operator does not lose the auth

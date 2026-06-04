@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Form body support: `urlencoded` and `formdata` text fields are now parsed and
+  rendered into the generated request as a `data={...}` argument instead of
+  being dropped. File-type `formdata` fields (uploads) are still skipped
+  (partial #1).
+
 ## [1.1.0] - 2026-05-23
 
 ### Added

@@ -62,6 +62,8 @@ class ParsedRequest(BaseModel):
     url: str
     headers: dict[str, str]
     body: str | None
+    body_mode: str = "raw"  # raw | urlencoded | formdata
+    form_fields: dict[str, str] | None = None  # set for urlencoded / formdata
     expected_status: int
     folder: str | None
     final_test_name: str = ""  # filled by _disambiguate after parse
@@ -126,11 +128,28 @@ def _parse_item(item: dict[str, Any], folder: str | None = None) -> list[ParsedR
         }
 
         body: str | None = None
+        body_mode = "raw"
+        form_fields: dict[str, str] | None = None
         body_obj = request.get("body")
-        if body_obj and body_obj.get("mode") == "raw":
-            raw = body_obj.get("raw", "").strip()
-            if raw:
-                body = raw
+        if body_obj:
+            mode = body_obj.get("mode")
+            if mode == "raw":
+                raw = body_obj.get("raw", "").strip()
+                if raw:
+                    body = raw
+            elif mode in ("urlencoded", "formdata"):
+                fields: dict[str, str] = {}
+                for f in body_obj.get(mode, []):
+                    if not f.get("key") or f.get("disabled"):
+                        continue
+                    # formdata file fields carry no inline value to render;
+                    # render text fields only (file upload is a separate roadmap item).
+                    if mode == "formdata" and f.get("type") == "file":
+                        continue
+                    fields[f["key"]] = _replace_vars(f.get("value", ""))
+                if fields:
+                    body_mode = mode
+                    form_fields = fields
 
         events = item.get("event", [])
         expected_status = _extract_status(events) or 200
@@ -142,6 +161,8 @@ def _parse_item(item: dict[str, Any], folder: str | None = None) -> list[ParsedR
                 url=raw_url,
                 headers=headers,
                 body=body,
+                body_mode=body_mode,
+                form_fields=form_fields,
                 expected_status=expected_status,
                 folder=folder,
             )

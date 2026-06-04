@@ -25,7 +25,10 @@ def {{ req.test_name }}():
     {% else %}
     headers = {}
     {% endif %}
-    {% if req.body %}
+    {% if req.form_fields %}
+    data = {{ req.form_fields | tojson }}
+    response = requests.{{ req.method | lower }}(url, headers=headers, data=data)
+    {% elif req.body %}
     import json as _json
     body = _json.loads({{ req.body | tojson }})
     response = requests.{{ req.method | lower }}(url, headers=headers, json=body)
