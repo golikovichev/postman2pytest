@@ -12,6 +12,8 @@
 
 Convert a **Postman Collection v2.1** JSON file into a ready-to-run **pytest** test suite. One command.
 
+![postman2pytest demo](assets/demo.gif)
+
 📖 **[Read the article on Dev.to](https://dev.to/golikovichev/postman-and-pytest-are-living-in-parallel-universes-heres-a-bridge-5bgn)**
 
 ```bash
