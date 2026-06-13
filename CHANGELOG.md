@@ -13,6 +13,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   rendered into the generated request as a `data={...}` argument instead of
   being dropped. File-type `formdata` fields (uploads) are still skipped
   (partial #1).
+- Status extraction now also recognises the `pm.response.code === 201` idiom
+  (and the loose `==` form) in test scripts, not only
+  `pm.response.to.have.status(201)`. Collections that assert status the first
+  way previously fell back to the default 200, generating a test with the wrong
+  expected status.
 
 ## [1.1.0] - 2026-05-23
 

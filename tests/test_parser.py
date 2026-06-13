@@ -72,6 +72,28 @@ def test_extract_status_ignores_prerequest_events():
     assert _extract_status(events) is None
 
 
+def test_extract_status_finds_strict_response_code_equality():
+    # Postman's other common status idiom, not covered by .have.status(N).
+    events = [
+        {"listen": "test", "script": {"exec": ["pm.test('ok', () => pm.response.code === 201);"]}}
+    ]
+    assert _extract_status(events) == 201
+
+
+def test_extract_status_finds_loose_response_code_equality():
+    events = [{"listen": "test", "script": {"exec": ["if (pm.response.code == 204) {}"]}}]
+    assert _extract_status(events) == 204
+
+
+def test_extract_status_ignores_negated_response_code():
+    # `!== 200` asserts the status is NOT 200; it must not be misread as
+    # expecting 200. Locks in the negation guard against a future regex change.
+    events = [
+        {"listen": "test", "script": {"exec": ["pm.test('x', () => pm.response.code !== 200);"]}}
+    ]
+    assert _extract_status(events) is None
+
+
 # Parse_collection
 
 

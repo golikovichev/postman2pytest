@@ -40,17 +40,24 @@ def _slugify(text: str) -> str:
     return slug or "unnamed"
 
 
+_STATUS_HAVE_RE = re.compile(r"\.have\.status\((\d+)\)")
+_STATUS_CODE_RE = re.compile(r"pm\.response\.code\s*===?\s*(\d+)")
+
+
 def _extract_status(events: list[dict[str, Any]]) -> int | None:
     """
     Try to extract expected status code from Postman test scripts.
-    Looks for: pm.response.to.have.status(201)
+
+    Recognises both common idioms:
+      - pm.response.to.have.status(201)
+      - pm.response.code === 201   (also the loose == form)
+    The .have.status(N) form wins when both appear in one script.
     """
-    pattern = re.compile(r"\.have\.status\((\d+)\)")
     for event in events:
         if event.get("listen") != "test":
             continue
         script = "\n".join(event.get("script", {}).get("exec", []))
-        match = pattern.search(script)
+        match = _STATUS_HAVE_RE.search(script) or _STATUS_CODE_RE.search(script)
         if match:
             return int(match.group(1))
     return None
