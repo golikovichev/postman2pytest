@@ -9,6 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Last commit](https://img.shields.io/github/last-commit/golikovichev/postman2pytest)](https://github.com/golikovichev/postman2pytest/commits/main)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13008/badge)](https://www.bestpractices.dev/projects/13008)
+[![Tessl](https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.tessl.io%2Fv1%2Fbadges%2Fgolikovichev%2Fpostman2pytest)](https://tessl.io/registry/golikovichev/postman2pytest)
 
 Convert a **Postman Collection v2.1** JSON file into a ready-to-run **pytest** test suite. One command.
 
