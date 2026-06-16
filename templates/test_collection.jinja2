@@ -38,6 +38,9 @@ def {{ req.test_name }}():
     assert response.status_code == {{ req.expected_status }}, (
         f"Expected {{ req.expected_status }}, got {response.status_code}: {response.text[:200]}"
     )
+    {% for assertion in req.assertions %}
+    {{ assertion.to_pytest() }}
+    {% endfor %}
 
 
 {% endfor %}

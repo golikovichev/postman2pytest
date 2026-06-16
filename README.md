@@ -150,6 +150,10 @@ def test_get_users():
 - ✅ Raw JSON body
 - ✅ Expected status from `pm.response.to.have.status(N)` test scripts
 - ✅ Falls back to 200 when no status assertion found
+- ✅ Test-script assertions translated to pytest `assert`: response time
+  (`responseTime ... to.be.below(N)`), header presence (`to.have.header("X")`),
+  and top-level JSON field equality (`pm.expect(jsonData.field).to.eql(value)`,
+  string / number / boolean)
 - ✅ Malformed items skipped with a warning. Rest of collection still generated
 
 ## Limitations
@@ -164,9 +168,12 @@ collection.
 - ❌ **Pre-request scripts are skipped.** Auth that depends on `pm.sendRequest`
   to grab a token before each call (e.g. OAuth client-credentials flows
   refreshing per request) needs manual translation into a pytest fixture.
-- ❌ **Test scripts beyond a status assertion are dropped.** Only
-  `pm.response.to.have.status(N)` is extracted; chai-style body shape checks,
-  custom JS, and `pm.variables.set(...)` calls do not survive the conversion.
+- ⚠ **Only a subset of test-script assertions is translated.** Status,
+  response time, header presence, and top-level JSON field equality survive the
+  conversion (see Supported features). Anything outside that subset (arbitrary
+  JS, nested-field or array-length checks, JSON schema validation, and
+  `pm.variables.set(...)` calls) is skipped rather than mistranslated, so a
+  generated test never carries a broken assert.
 - ⚠ **Multipart file uploads are not generated yet.** Text fields in
   `urlencoded` and `formdata` bodies are now rendered as a `data={...}`
   argument on the request. File-type form fields (uploads) are still skipped.

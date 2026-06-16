@@ -9,7 +9,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, field_validator
 from unidecode import unidecode
@@ -63,6 +63,99 @@ def _extract_status(events: list[dict[str, Any]]) -> int | None:
     return None
 
 
+def _parse_js_value(raw: str) -> Any:
+    """
+    Parse a JS literal (string, number, boolean) into its Python value.
+
+    Returns None when the token is not a recognised literal (for example a
+    variable reference or an expression). None signals the caller to skip the
+    assertion rather than emit a guess.
+    """
+    raw = raw.strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in ("'", '"'):
+        return raw[1:-1]
+    if raw == "true":
+        return True
+    if raw == "false":
+        return False
+    try:
+        return int(raw)
+    except ValueError:
+        pass
+    try:
+        return float(raw)
+    except ValueError:
+        pass
+    return None
+
+
+_RESP_TIME_RE = re.compile(r"responseTime\s*\)\s*\.to\.be\.below\(\s*(\d+)\s*\)")
+_HEADER_RE = re.compile(r"\.to\.have\.header\(\s*(['\"])(.+?)\1\s*\)")
+_JSON_FIELD_RE = re.compile(
+    r"pm\.expect\(\s*(?:jsonData|pm\.response\.json\(\))\.(\w+)\s*\)"
+    r"\s*\.to\.(?:eql|equal)\(\s*(.+?)\s*\)"
+)
+
+
+class Assertion(BaseModel):
+    """
+    A translated Postman test-script assertion.
+
+    kind selects the check; target and value carry its parameters:
+      - response_time_below: value = threshold in milliseconds
+      - header_present:      target = header name
+      - json_field_equals:   target = top-level JSON field, value = expected
+    """
+
+    kind: Literal["response_time_below", "header_present", "json_field_equals"]
+    target: str | None = None
+    value: Any = None
+
+    def to_pytest(self) -> str:
+        """Render this assertion as a single pytest assert statement."""
+        if self.kind == "response_time_below":
+            return (
+                f"assert response.elapsed.total_seconds() * 1000 < {self.value}, "
+                f'"response time exceeded {self.value} ms"'
+            )
+        if self.kind == "header_present":
+            return f'assert {self.target!r} in response.headers, "missing header {self.target}"'
+        if self.kind == "json_field_equals":
+            return (
+                f"assert response.json().get({self.target!r}) == {self.value!r}, "
+                f'"json field {self.target} mismatch"'
+            )
+        return ""
+
+
+def _extract_assertions(events: list[dict[str, Any]]) -> list[Assertion]:
+    """
+    Translate recognised Postman test-script patterns into Assertions.
+
+    Scans the 'test' event scripts for the supported idioms: response time,
+    header presence, and JSON field equality. Status checks are excluded here
+    because they are handled by expected_status. Unrecognised patterns are
+    skipped so the generated test never carries a broken assert.
+    """
+    assertions: list[Assertion] = []
+    for event in events:
+        if event.get("listen") != "test":
+            continue
+        script = "\n".join(event.get("script", {}).get("exec", []))
+        for match in _RESP_TIME_RE.finditer(script):
+            assertions.append(Assertion(kind="response_time_below", value=int(match.group(1))))
+        for match in _HEADER_RE.finditer(script):
+            assertions.append(Assertion(kind="header_present", target=match.group(2)))
+        for match in _JSON_FIELD_RE.finditer(script):
+            value = _parse_js_value(match.group(2))
+            if value is None:
+                continue
+            assertions.append(
+                Assertion(kind="json_field_equals", target=match.group(1), value=value)
+            )
+    return assertions
+
+
 class ParsedRequest(BaseModel):
     name: str
     method: str
@@ -72,6 +165,7 @@ class ParsedRequest(BaseModel):
     body_mode: str = "raw"  # raw | urlencoded | formdata
     form_fields: dict[str, str] | None = None  # set for urlencoded / formdata
     expected_status: int
+    assertions: list[Assertion] = []  # translated from Postman test scripts
     folder: str | None
     final_test_name: str = ""  # filled by _disambiguate after parse
 
@@ -171,6 +265,7 @@ def _parse_item(item: dict[str, Any], folder: str | None = None) -> list[ParsedR
                 body_mode=body_mode,
                 form_fields=form_fields,
                 expected_status=expected_status,
+                assertions=_extract_assertions(events),
                 folder=folder,
             )
         )

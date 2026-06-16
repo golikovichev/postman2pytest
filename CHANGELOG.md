@@ -7,8 +7,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-16
+
 ### Added
 
+- Test-script assertion translation: Postman `pm.test(...)` scripts are now
+  parsed and translated into pytest `assert` statements instead of being
+  dropped. The supported subset covers response time
+  (`responseTime ... to.be.below(N)`), header presence
+  (`to.have.header("X")`), and top-level JSON body field equality
+  (`pm.expect(jsonData.field).to.eql(value)` and the `pm.response.json().field`
+  idiom, for string / number / boolean values). Patterns outside this subset
+  (arbitrary JavaScript, nested fields, schema validation) are skipped rather
+  than mistranslated, so a generated test never carries a broken assert.
 - Form body support: `urlencoded` and `formdata` text fields are now parsed and
   rendered into the generated request as a `data={...}` argument instead of
   being dropped. File-type `formdata` fields (uploads) are still skipped
