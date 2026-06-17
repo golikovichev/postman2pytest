@@ -1,0 +1,8 @@
+{
+  "name": "golikovichev/postman2pytest",
+  "description": "Convert a Postman Collection v2.1 JSON file into a runnable pytest test suite using the postman2pytest CLI. Use when the user has a Postman collection (a .postman_collection.json or v2.1 JSON export) and wants to run it as pytest in CI, when migrating from Postman/Newman to a Python-native test stack, when bridging Postman-documented APIs into a pytest-based regression suite, when the user asks to generate pytest tests from Postman, or when the user mentions wanting to keep Postman as the source of truth but run the suite with pytest.",
+  "skills": [
+    "."
+  ],
+  "version": "0.1.3"
+}

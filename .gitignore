@@ -30,3 +30,7 @@ coverage.xml
 
 # graphify-generated knowledge graph (local AST extraction, not committed)
 graphify-out/
+.codegraph/
+
+# Tessl eval scenarios (managed on tessl.io, contain realistic-looking fixture secrets)
+evals/
