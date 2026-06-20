@@ -7,6 +7,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Property-based fuzz tests for the collection parser (Hypothesis), feeding it
+  arbitrary and deliberately malformed JSON to keep its failure modes graceful.
+
+### Fixed
+
+- The parser no longer crashes with an unhandled `AttributeError`, `TypeError`
+  or `RecursionError` on a malformed collection file. A non-object root now
+  raises a clear `ValueError`; a non-object `info` or non-list `item` is
+  tolerated; scalar items are skipped with a warning; and folder trees nested
+  too deeply to parse raise a clear `ValueError` instead of overflowing the
+  stack.
+
 ## [1.2.0] - 2026-06-16
 
 ### Added

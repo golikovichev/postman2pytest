@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 
 _VAR_RE = re.compile(r"\{\{(\w+)\}\}")
 
+# Guards against a malformed (or hand-crafted) collection whose folders nest so
+# deeply that recursion would overflow the stack. Real Postman folder trees are
+# only a handful of levels deep, so this ceiling is well above any genuine use.
+_MAX_FOLDER_DEPTH = 100
+
 
 def _replace_vars(value: str) -> str:
     """Replace Postman {{variable}} with Python os.environ placeholder."""
@@ -199,17 +204,36 @@ class ParsedRequest(BaseModel):
         return f"test_{self.method.lower()}_{name_slug}"
 
 
-def _parse_item(item: dict[str, Any], folder: str | None = None) -> list[ParsedRequest]:
+def _parse_item(
+    item: dict[str, Any], folder: str | None = None, _depth: int = 0
+) -> list[ParsedRequest]:
     """Recursively parse a Postman item (request or folder)."""
     results: list[ParsedRequest] = []
 
+    # A malformed collection can carry non-object items (scalars, lists). Skip
+    # them with a warning rather than crashing the whole run.
+    if not isinstance(item, dict):
+        logger.warning("Skipping item that is not an object: %r", item)
+        return results
+
     # Folder: recurse into sub-items
     if "item" in item:
+        if _depth >= _MAX_FOLDER_DEPTH:
+            logger.warning(
+                "Skipping folder '%s': nesting exceeds %d levels.",
+                item.get("name", "?"),
+                _MAX_FOLDER_DEPTH,
+            )
+            return results
+        sub_items = item["item"]
+        if not isinstance(sub_items, list):
+            logger.warning("Skipping folder '%s': 'item' is not a list.", item.get("name", "?"))
+            return results
         folder_name = _slugify(item.get("name", ""))
         if folder_name == "unnamed":
             folder_name = ""
-        for sub in item["item"]:
-            results.extend(_parse_item(sub, folder=folder_name or None))
+        for sub in sub_items:
+            results.extend(_parse_item(sub, folder=folder_name or None, _depth=_depth + 1))
         return results
 
     # Request item
@@ -321,13 +345,25 @@ def parse_collection(path: Path) -> list[ParsedRequest]:
     Returns a flat list of ParsedRequest objects.
     Malformed items are skipped with a warning.
     """
-    data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data: Any = json.loads(path.read_text(encoding="utf-8"))
+    except RecursionError as exc:
+        raise ValueError("Collection JSON is nested too deeply to parse.") from exc
 
-    schema = data.get("info", {}).get("schema", "")
+    if not isinstance(data, dict):
+        raise ValueError(f"Collection root must be a JSON object, got {type(data).__name__}.")
+
+    info = data.get("info")
+    schema = info.get("schema", "") if isinstance(info, dict) else ""
     if "v2.1" not in schema and "v2.0" not in schema:
         logger.warning("Unexpected collection schema: %s. Proceeding anyway.", schema)
 
     items = data.get("item", [])
+    if not isinstance(items, list):
+        logger.warning(
+            "Collection 'item' is not a list (got %s); treating as empty.", type(items).__name__
+        )
+        items = []
     results: list[ParsedRequest] = []
     for item in items:
         results.extend(_parse_item(item))
