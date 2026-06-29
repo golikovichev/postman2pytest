@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -37,7 +38,7 @@ class Environment:
         self._vars = variables
 
     @classmethod
-    def from_postman_export(cls, data: dict) -> Environment:
+    def from_postman_export(cls, data: dict[str, Any]) -> Environment:
         """Build an Environment from a parsed Postman environment export.
 
         Disabled entries and entries without a key are skipped. A missing
