@@ -12,8 +12,16 @@ import requests
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8080")
 
 
+{% for name in all_fixtures %}
+@pytest.fixture
+def {{ name }}():
+    """Postman variable '{{ name }}'. Set the {{ name }} environment variable, or override this fixture."""
+    return os.environ.get("{{ name }}", "")
+
+
+{% endfor %}
 {% for req in requests %}
-def {{ req.test_name }}():
+def {{ req.test_name }}({{ fixtures_per_request[loop.index0] | join(", ") }}):
     """{{ req.method }} {{ req.url }}{% if req.folder %} ({{ req.folder }}){% endif %}"""
     url = {{ req.url | render_url }}
     {% if req.headers %}

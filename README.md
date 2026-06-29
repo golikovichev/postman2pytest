@@ -62,6 +62,7 @@ BASE_URL=https://staging.example.com pytest generated_tests/test_api.py -v
 | `--out` | ✅ | Output path for generated pytest file |
 | `--base-url` | ❌ | Tip printed after generation (does not override env var) |
 | `--filter-folder` | ❌ | Generate tests only for the named Postman folder |
+| `--env` | ❌ | Postman environment JSON export to resolve `{{variables}}` |
 
 To regenerate tests for one folder, pass its Postman folder name:
 
@@ -71,6 +72,31 @@ postman2pytest \
   --out generated_tests/test_users.py \
   --filter-folder Users
 ```
+
+### Resolving environment variables
+
+Postman collections reference variables such as `{{base_url}}` and
+`{{auth_token}}`. Pass a Postman environment export with `--env` to resolve
+them:
+
+```bash
+postman2pytest \
+  --collection data/my_api.postman_collection.json \
+  --out generated_tests/test_api.py \
+  --env data/prod.postman_environment.json
+```
+
+- Non-secret variables are inlined as literal values in the generated tests.
+- Variables marked `secret` in the environment, and any variable not present
+  in it, become named pytest fixtures instead. The secret value never lands in
+  the generated source; the fixture reads it from the environment at run time
+  (and can be overridden in your own `conftest.py`).
+
+Resolution covers variables in request URLs and headers. Variables inside
+request bodies and form fields are not resolved yet and are left as-is.
+
+Without `--env`, variables are left as `os.environ.get("name", "")` lookups,
+exactly as before.
 
 ## Examples
 
