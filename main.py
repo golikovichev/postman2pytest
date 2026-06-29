@@ -12,6 +12,7 @@ import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
+from core.environment import load_environment
 from core.generator import generate
 from core.parser import ParsedRequest, parse_collection
 
@@ -56,6 +57,14 @@ def main() -> int:
     parser.add_argument(
         "--filter-folder",
         help="Only generate tests for requests in the named Postman folder (case-insensitive)",
+    )
+    parser.add_argument(
+        "--env",
+        help=(
+            "Path to a Postman environment JSON export. Non-secret variables are "
+            "resolved to literal values in the generated tests; secret and unknown "
+            "variables stay as os.environ lookups."
+        ),
     )
     parser.add_argument(
         "--max-input-mb",
@@ -104,8 +113,25 @@ def main() -> int:
         logger.error("No valid requests found in collection. Nothing to generate.")
         return 1
 
+    postman_env = None
+    if args.env:
+        env_path = Path(args.env)
+        if not env_path.exists():
+            logger.error("Environment file not found: %s", env_path)
+            return 1
+        try:
+            postman_env = load_environment(env_path)
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.error("Could not read environment file %s: %s", env_path, exc)
+            return 1
+
     output_path = Path(args.out)
-    generate(requests, collection_name=collection_name, output_path=output_path)
+    generate(
+        requests,
+        collection_name=collection_name,
+        output_path=output_path,
+        postman_env=postman_env,
+    )
 
     print(f"\nGenerated {len(requests)} test(s) -> {output_path}")
     print(f"  Run with: pytest {output_path} -v")
