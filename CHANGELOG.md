@@ -24,6 +24,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- A non-dict sub-structure inside an item no longer aborts the whole parse. A
+  `request`, header element, `body`, or form field arriving as a string or
+  `null` made a `.get(...)` call raise `AttributeError`, which was not in the
+  caught tuple, so one malformed item crashed the entire run. `AttributeError`
+  is now caught alongside `KeyError` / `TypeError` / `ValueError`, so the bad
+  item is skipped with a warning and the rest of the collection still parses.
+  Covered by five regression cases in `tests/test_parser.py`.
 - The parser no longer crashes with an unhandled `AttributeError`, `TypeError`
   or `RecursionError` on a malformed collection file. A non-object root now
   raises a clear `ValueError`; a non-object `info` or non-list `item` is

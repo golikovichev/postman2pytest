@@ -293,7 +293,10 @@ def _parse_item(
                 folder=folder,
             )
         )
-    except (KeyError, TypeError, ValueError) as exc:
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        # AttributeError covers a non-dict sub-structure (request / a header
+        # element / body / a form field arriving as a string or None), where a
+        # `.get(...)` call would otherwise raise and abort the whole parse.
         logger.warning("Skipping item '%s': %s", item.get("name", "?"), exc)
 
     return results

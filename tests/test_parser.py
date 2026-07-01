@@ -4,6 +4,8 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 from core.parser import _extract_status, _replace_vars, _slugify, parse_collection
 from main import filter_requests_by_folder
 
@@ -344,18 +346,16 @@ def test_folder_with_unsluggable_name_becomes_empty(tmp_path):
 def test_malformed_request_skipped_with_warning(tmp_path, caplog):
     """Item that raises TypeError during parse is skipped with a warning.
 
-    Covers parser.py L149-150: `except (KeyError, TypeError, ValueError)` branch.
-    Header with non-string value triggers re.sub TypeError inside _replace_vars.
+    Covers the `except (KeyError, TypeError, ValueError, AttributeError)`
+    branch. Header with a non-string value triggers a re.sub TypeError inside
+    _replace_vars.
 
     Brittleness note: if `_replace_vars` ever coerces values via `str(value)`,
     this specific TypeError trigger stops firing and the request will parse
     successfully. The assertion below (`len(requests) == 1` + only 'Good'
-    survives) would fail loudly in that case. Replace this trigger with
-    another shape that still raises one of (KeyError, TypeError, ValueError)
-    inside the try block. Candidates: header element with non-dict shape
-    (e.g. `"header": ["not-a-dict"]` -> `h.get("key")` raises AttributeError.
-    Note that AttributeError is NOT caught here, so it would need a different
-    fix), or set `"event": "not-a-list"` so `_extract_status` iteration fails.
+    survives) would fail loudly in that case. Non-dict sub-structure shapes
+    (a string / None request, header, body, or form field) are covered
+    separately by test_non_dict_substructure_skipped_not_crash.
     """
     import logging
 
@@ -377,6 +377,53 @@ def test_malformed_request_skipped_with_warning(tmp_path, caplog):
     assert requests[0].name == "Good"
     warnings = [r for r in caplog.records if r.levelname == "WARNING"]
     assert any("Skipping item 'Bad header value'" in r.message for r in warnings)
+
+
+@pytest.mark.parametrize(
+    "bad_request",
+    [
+        pytest.param("GET /a", id="request_is_string"),
+        pytest.param(
+            {"method": "GET", "url": {"raw": "/a"}, "header": ["Authorization: x"]},
+            id="header_element_is_string",
+        ),
+        pytest.param(
+            {"method": "GET", "url": {"raw": "/a"}, "header": [None]},
+            id="header_element_is_null",
+        ),
+        pytest.param(
+            {"method": "POST", "url": {"raw": "/a"}, "body": "not-a-dict"},
+            id="body_is_string",
+        ),
+        pytest.param(
+            {
+                "method": "POST",
+                "url": {"raw": "/a"},
+                "body": {"mode": "urlencoded", "urlencoded": ["k=v"]},
+            },
+            id="formfield_is_string",
+        ),
+    ],
+)
+def test_non_dict_substructure_skipped_not_crash(tmp_path, caplog, bad_request):
+    """A non-dict request / header / body / form-field skips the item with a
+    warning instead of crashing the whole parse with an uncaught AttributeError.
+
+    The parser contract is that a malformed item is dropped, not fatal. Before
+    the fix, `.get(...)` on a string or None sub-structure raised AttributeError,
+    which was not in the caught tuple, so one bad item killed the entire run.
+    """
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="core.parser")
+    bad_item = {"name": "Bad", "request": bad_request}
+    good_item = _simple_request("Good", url="/ok")
+    requests = parse_collection(
+        _write_collection(tmp_path, _minimal_collection([bad_item, good_item]))
+    )
+    # the valid request still parses; the malformed one is dropped, not fatal.
+    assert [r.name for r in requests] == ["Good"]
+    assert any(r.levelname == "WARNING" for r in caplog.records)
 
 
 def test_disambiguate_preserves_non_colliding_names(tmp_path):
