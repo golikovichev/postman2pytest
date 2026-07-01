@@ -159,12 +159,76 @@ def _render_header_value(value: str, env: PostmanEnvironment | None = None) -> s
     return 'f"' + _interpolate(value, fixture_mode=env is not None) + '"'
 
 
+# Auth headers are pulled out of each test and centralised in an auth_headers
+# fixture. The exact set covers Authorization (Bearer/Basic) and proxy auth; the
+# pattern catches the common API-key / token header names. Keeping these out of
+# the exact set (e.g. Authentication, WWW-Authenticate) avoids false positives.
+_AUTH_HEADER_EXACT = frozenset({"authorization", "proxy-authorization"})
+_AUTH_HEADER_RE = re.compile(
+    r"api[-_]?key|x-auth-token|x-access-token|x-amz-security-token", re.IGNORECASE
+)
+_BEARER_BASIC_RE = re.compile(r"^(Bearer|Basic)\s+(\S.*)$", re.IGNORECASE)
+
+
+def _is_auth_header(name: str) -> bool:
+    lowered = name.lower()
+    return lowered in _AUTH_HEADER_EXACT or bool(_AUTH_HEADER_RE.search(lowered))
+
+
+def _auth_env_name(name: str) -> str:
+    """Environment variable name for a hardcoded auth secret.
+
+    Authorization maps to AUTH_TOKEN; any other auth header (API-key style)
+    maps to an upper snake-case of its own name (X-Api-Key -> X_API_KEY).
+    """
+    if name.lower() == "authorization":
+        return "AUTH_TOKEN"
+    return re.sub(r"[^A-Za-z0-9]+", "_", name).strip("_").upper()
+
+
+def _render_auth_value(name: str, value: str, env: PostmanEnvironment | None) -> str:
+    """Python expression for one auth header value in the auth_headers fixture.
+
+    The secret never lands in the source. Postman ENV_xxx tokens become
+    os.environ lookups (not inlined, not a bare fixture reference, so the
+    fixture is self-contained). A hardcoded token is replaced with an env
+    placeholder, and a Bearer/Basic scheme prefix is preserved.
+    """
+    if "ENV_" in value:
+        return 'f"' + _interpolate(value, fixture_mode=False) + '"'
+    env_name = _auth_env_name(name)
+    match = _BEARER_BASIC_RE.match(value)
+    if match:
+        scheme = match.group(1).capitalize()
+        return f"f\"{scheme} {{os.environ.get({env_name!r}, '')}}\""
+    return f"os.environ.get({env_name!r}, '')"
+
+
+def _split_auth_headers(
+    req: ParsedRequest, env: PostmanEnvironment | None
+) -> tuple[dict[str, str], list[tuple[str, str]]]:
+    """Partition a request's headers into (non_auth, auth_items).
+
+    non_auth stays a name->value dict rendered inline as before; auth_items is
+    a list of (name, expression) pairs for the shared fixture.
+    """
+    non_auth: dict[str, str] = {}
+    auth_items: list[tuple[str, str]] = []
+    for key, value in req.headers.items():
+        if _is_auth_header(key):
+            auth_items.append((key, _render_auth_value(key, value, env)))
+        else:
+            non_auth[key] = value
+    return non_auth, auth_items
+
+
 def _collect_fixtures(req: ParsedRequest, env: PostmanEnvironment | None) -> list[str]:
     """Variable names in this request that become named pytest fixtures.
 
     A fixture is needed for every {{var}} that survives inlining (secret or
     unknown). The leading URL variable is excluded: it maps to BASE_URL, not
-    a fixture. Only meaningful when an environment was supplied.
+    a fixture. Auth-header variables are excluded too: they live in the
+    auth_headers fixture. Only meaningful when an environment was supplied.
     """
     if env is None:
         return []
@@ -178,7 +242,9 @@ def _collect_fixtures(req: ParsedRequest, env: PostmanEnvironment | None) -> lis
         url = _ENV_PREFIX_RE.sub("", url)  # relative: leading var -> BASE_URL, not a fixture
     _add_safe(url)  # remaining url vars (absolute or relative)
 
-    for value in req.headers.values():
+    for key, value in req.headers.items():
+        if _is_auth_header(key):
+            continue  # handled by the auth_headers fixture, not a per-var fixture
         _add_safe(_inline_env_tokens(value, env))
 
     return sorted(names)
@@ -218,17 +284,54 @@ def generate(
     fixtures_per_request = [_collect_fixtures(req, postman_env) for req in requests]
     all_fixtures = sorted({name for fx in fixtures_per_request for name in fx})
 
+    # Split auth headers out of each request. non_auth headers render inline as
+    # before; auth headers are collected once (union, first value wins) into the
+    # shared auth_headers fixture written to conftest.py.
+    non_auth_per_request: list[dict[str, str]] = []
+    has_auth_per_request: list[bool] = []
+    auth_headers_map: dict[str, str] = {}
+    seen_auth_lower: set[str] = set()  # HTTP header names are case-insensitive
+    for req in requests:
+        non_auth, auth_items = _split_auth_headers(req, postman_env)
+        non_auth_per_request.append(non_auth)
+        has_auth_per_request.append(bool(auth_items))
+        for name, expr in auth_items:
+            if name.lower() in seen_auth_lower:
+                continue  # same header in another casing: keep the first entry
+            seen_auth_lower.add(name.lower())
+            auth_headers_map[name] = expr
+
+    params_per_request = [
+        ", ".join(fx + (["auth_headers"] if has_auth else []))
+        for fx, has_auth in zip(fixtures_per_request, has_auth_per_request, strict=True)
+    ]
+
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     rendered = template.render(
         requests=requests,
         fixtures_per_request=fixtures_per_request,
         all_fixtures=all_fixtures,
+        non_auth_per_request=non_auth_per_request,
+        has_auth_per_request=has_auth_per_request,
+        params_per_request=params_per_request,
         collection_name=collection_name,
-        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        generated_at=generated_at,
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(rendered, encoding="utf-8")
     logger.info("Written %d tests to %s", len(requests), output_path)
+
+    if auth_headers_map:
+        conftest_template = env.get_template("conftest.jinja2")
+        conftest_rendered = conftest_template.render(
+            auth_items=sorted(auth_headers_map.items()),
+            collection_name=collection_name,
+            generated_at=generated_at,
+        )
+        conftest_path = output_path.parent / "conftest.py"
+        conftest_path.write_text(conftest_rendered, encoding="utf-8")
+        logger.info("Written auth_headers fixture to %s", conftest_path)
 
 
 def _to_python_repr(value: object) -> str:

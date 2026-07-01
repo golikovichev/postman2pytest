@@ -129,8 +129,14 @@ def test_generate_headers_present(tmp_path):
     req = _req(headers={"Authorization": "Bearer token", "Accept": "application/json"})
     generate([req], collection_name="API", output_path=out)
     content = out.read_text(encoding="utf-8")
-    assert "Authorization" in content
-    assert "Bearer token" in content
+    conftest = (out.parent / "conftest.py").read_text(encoding="utf-8")
+    # non-auth header stays inline; the auth header moves to the shared fixture.
+    assert "Accept" in content
+    assert "**auth_headers" in content
+    assert "Bearer token" not in content
+    assert "Authorization" in conftest
+    assert "AUTH_TOKEN" in conftest
+    assert "Bearer token" not in conftest
 
 
 def test_generate_empty_headers_is_empty_dict(tmp_path):
@@ -141,13 +147,16 @@ def test_generate_empty_headers_is_empty_dict(tmp_path):
 
 
 def test_generate_env_var_in_header_value(tmp_path):
-    """ENV_token in header value should become os.environ.get('token', '') f-string."""
+    """ENV_token in an auth header becomes os.environ.get('token', '') in the fixture."""
     out = tmp_path / "test_api.py"
     req = _req(headers={"Authorization": "Bearer ENV_token"})
     generate([req], collection_name="API", output_path=out)
     content = out.read_text(encoding="utf-8")
-    assert "os.environ.get('token'" in content
+    conftest = (out.parent / "conftest.py").read_text(encoding="utf-8")
+    # Authorization is centralised in the auth_headers fixture (conftest).
+    assert "os.environ.get('token'" in conftest
     assert "ENV_token" not in content  # must not be literal
+    assert "ENV_token" not in conftest
 
 
 # Multiple requests

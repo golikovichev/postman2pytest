@@ -9,6 +9,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Auth headers now extract into a shared `auth_headers` fixture (closes #2).
+  Authorization Bearer/Basic and API-key headers are detected, pulled out of
+  each generated test, and centralised in an `auth_headers` fixture written to a
+  generated `conftest.py`. The generated tests take the fixture and merge it
+  into their headers, and each secret is replaced with an environment-variable
+  placeholder (`AUTH_TOKEN` for Authorization, an upper snake-case of the header
+  name otherwise), so no token lands in the generated source. Postman variables
+  in an auth header become `os.environ` lookups in the fixture. The fixture is a
+  union across the collection; conflicting schemes are noted in the README
+  limitations.
 - Property-based fuzz tests for the collection parser (Hypothesis), feeding it
   arbitrary and deliberately malformed JSON to keep its failure modes graceful.
 

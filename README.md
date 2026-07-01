@@ -173,6 +173,9 @@ def test_get_users():
 - ✅ Nested folders → flattened with folder prefix in test name
 - ✅ GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS
 - ✅ Request headers (disabled headers excluded)
+- ✅ Auth headers (Authorization Bearer/Basic, API-key headers) pulled into a
+  shared `auth_headers` fixture in a generated `conftest.py`; the secret is
+  replaced with an environment-variable placeholder (`AUTH_TOKEN`, `X_API_KEY`, ...)
 - ✅ Raw JSON body
 - ✅ Expected status from `pm.response.to.have.status(N)` test scripts
 - ✅ Falls back to 200 when no status assertion found
@@ -209,6 +212,11 @@ collection.
   to the last value, and a hand-set `multipart/form-data` Content-Type header
   will not match the urlencoded body. Adjust by hand if your endpoint needs
   multipart or multi-value keys.
+- ⚠ **`auth_headers` is a union across the collection.** Every detected auth
+  header goes into one shared fixture, so a request that used a single scheme
+  still receives all of them. Split the fixture by hand if your endpoints use
+  conflicting auth. The generated `conftest.py` is overwritten on each run and
+  is not merged with an existing one.
 - ❌ **Cookies, certificates, and per-request proxy settings are ignored.**
 - ⚠ **Variable substitution is shallow.** Path variables (`/users/:id`)
   become `{id}` placeholders; collection-level variables are not resolved.
@@ -228,13 +236,16 @@ the [issues board](https://github.com/golikovichev/postman2pytest/issues).
   now render as `data={...}` (OAuth-token-endpoint cases work). File-type
   upload fields are still skipped.
   ([#1](https://github.com/golikovichev/postman2pytest/issues/1))
+- **Auth-header fixtures**
+  ([#2](https://github.com/golikovichev/postman2pytest/issues/2)): done. Auth
+  headers now extract into a shared `auth_headers` fixture (see Supported
+  features).
 - **Pre-request script translation, scoped scope**: surface the script,
   even as a `pytest.fixture` stub, so the operator does not lose the auth
   context silently.
 - **`--ai-edges` mode**: opt-in pass that asks an LLM to fill in edge
   cases (boundary numbers, missing required fields, type-confusion payloads)
   on top of the deterministic happy-path tests.
-  ([#2](https://github.com/golikovichev/postman2pytest/issues/2))
 - **Environment file ingestion**: accept Postman environment JSON exports
   and write a matching `conftest.py` so `{{baseUrl}}` and similar resolve
   through pytest variables.

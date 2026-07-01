@@ -21,12 +21,16 @@ def {{ name }}():
 
 {% endfor %}
 {% for req in requests %}
-def {{ req.test_name }}({{ fixtures_per_request[loop.index0] | join(", ") }}):
+def {{ req.test_name }}({{ params_per_request[loop.index0] }}):
     """{{ req.method }} {{ req.url }}{% if req.folder %} ({{ req.folder }}){% endif %}"""
     url = {{ req.url | render_url }}
-    {% if req.headers %}
+    {% set non_auth = non_auth_per_request[loop.index0] %}
+    {% if has_auth_per_request[loop.index0] or non_auth %}
     headers = {
-        {% for key, value in req.headers.items() %}
+        {% if has_auth_per_request[loop.index0] %}
+        **auth_headers,
+        {% endif %}
+        {% for key, value in non_auth.items() %}
         {{ key | tojson }}: {{ value | render_header_value }},
         {% endfor %}
     }

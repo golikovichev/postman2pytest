@@ -212,15 +212,20 @@ def test_generate_emits_fixtures_for_secret_and_unknown(tmp_path: Path):
     generate(reqs, collection_name="C", output_path=out, postman_env=env)
     text = out.read_text(encoding="utf-8")
 
-    assert "def auth_token():" in text  # secret -> fixture
-    assert "def api_ver():" in text  # unknown -> fixture
+    conftest = (out.parent / "conftest.py").read_text(encoding="utf-8")
+    # Authorization is centralised in auth_headers (conftest), so its secret var
+    # is an os.environ lookup there, not a module fixture.
+    assert "def auth_token():" not in text
+    assert "os.environ.get('auth_token'" in conftest
+    assert "def api_ver():" in text  # unknown non-auth var -> module fixture
     assert "SUPERSECRET" not in text  # secret value never inlined
+    assert "SUPERSECRET" not in conftest
     assert "https://api.example.com/users" in text  # non-secret inlined
-    # the test takes the fixtures it uses, sorted, as parameters
-    assert "(api_ver, auth_token):" in text
-    assert "{auth_token}" in text  # bare fixture reference, not os.environ
-    # generated file is valid Python
+    # the test takes its module fixtures plus the shared auth_headers fixture
+    assert "(api_ver, auth_headers):" in text
+    # both generated files are valid Python
     compile(text, str(out), "exec")
+    compile(conftest, str(out.parent / "conftest.py"), "exec")
 
 
 def test_generate_without_env_emits_no_fixtures(tmp_path: Path):
@@ -234,9 +239,14 @@ def test_generate_without_env_emits_no_fixtures(tmp_path: Path):
     generate(reqs, collection_name="C", output_path=out, postman_env=None)
     text = out.read_text(encoding="utf-8")
 
-    assert "@pytest.fixture" not in text  # legacy path: no fixtures
-    assert "os.environ.get('auth_token'" in text  # legacy inline lookup
+    conftest = (out.parent / "conftest.py").read_text(encoding="utf-8")
+    assert "@pytest.fixture" not in text  # legacy path: module has no fixtures
+    # non-auth var stays inline in the module; the auth var lives in the fixture.
+    assert "os.environ.get('api_ver'" in text
+    assert "os.environ.get('auth_token'" in conftest
+    assert "auth_token" not in text  # auth var moved to the fixture
     compile(text, str(out), "exec")
+    compile(conftest, str(out.parent / "conftest.py"), "exec")
 
 
 def test_render_url_inlined_base_with_path_var_keeps_var_as_fixture():
