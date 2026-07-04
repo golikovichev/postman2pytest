@@ -63,6 +63,7 @@ BASE_URL=https://staging.example.com pytest generated_tests/test_api.py -v
 | `--base-url` | ❌ | Tip printed after generation (does not override env var) |
 | `--filter-folder` | ❌ | Generate tests only for the named Postman folder |
 | `--env` | ❌ | Postman environment JSON export to resolve `{{variables}}` |
+| `--max-input-mb` | ❌ | Refuse to load collections larger than this many MB (default: 100) |
 
 To regenerate tests for one folder, pass its Postman folder name:
 
@@ -190,10 +191,11 @@ def test_get_users():
 Honest scope so you know what to expect before pointing the tool at a real
 collection.
 
-- ❌ **Postman environments are not read.** `{{baseUrl}}` and friends are
-  passed through verbatim into the generated `url` strings. Set the
-  `BASE_URL` env var at test time, or post-process the file to swap in the
-  values you care about.
+- **Postman environments need `--env`.** Without it, `{{baseUrl}}` and friends
+  pass through verbatim into the generated `url` strings, so set the `BASE_URL`
+  env var at test time or post-process the file. Pass `--env path/to/env.json`
+  to resolve them: non-secret values are inlined as literals, secret and
+  unknown variables stay as `os.environ` lookups.
 - ❌ **Pre-request scripts are skipped.** Auth that depends on `pm.sendRequest`
   to grab a token before each call (e.g. OAuth client-credentials flows
   refreshing per request) needs manual translation into a pytest fixture.
@@ -246,9 +248,6 @@ the [issues board](https://github.com/golikovichev/postman2pytest/issues).
 - **`--ai-edges` mode**: opt-in pass that asks an LLM to fill in edge
   cases (boundary numbers, missing required fields, type-confusion payloads)
   on top of the deterministic happy-path tests.
-- **Environment file ingestion**: accept Postman environment JSON exports
-  and write a matching `conftest.py` so `{{baseUrl}}` and similar resolve
-  through pytest variables.
 - **Allure step annotations toggle**: `--allure` flag that wraps each
   generated test in `allure.step(...)` blocks so the report shows the
   Postman folder structure.

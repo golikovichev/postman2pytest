@@ -19,7 +19,7 @@ from core.parser import ParsedRequest, parse_collection
 try:
     __version__ = version("postman2pytest")
 except PackageNotFoundError:
-    __version__ = "1.0.2"
+    __version__ = "1.2.0"
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--base-url",
-        help="Override BASE_URL in generated tests (default: reads from BASE_URL env var)",
+        help="Print a run tip with this BASE_URL after generation (generated tests read BASE_URL from the env var)",
     )
     parser.add_argument(
         "--filter-folder",
