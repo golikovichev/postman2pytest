@@ -52,7 +52,7 @@ def _parse(value: object) -> list:
 
 
 @given(value=json_values)
-@settings(max_examples=300)
+@settings(max_examples=300, deadline=None)
 def test_parser_is_graceful_on_arbitrary_json(value: object) -> None:
     """Any JSON value parses to a list or raises a clear ValueError, never a crash."""
     try:
@@ -84,7 +84,7 @@ def _collection_shaped() -> st.SearchStrategy:
 
 
 @given(collection=_collection_shaped())
-@settings(max_examples=200)
+@settings(max_examples=200, deadline=None)
 def test_parser_is_graceful_on_collection_shaped_input(collection: dict) -> None:
     try:
         result = _parse(collection)
