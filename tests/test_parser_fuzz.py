@@ -43,8 +43,9 @@ json_values = st.recursive(
 
 
 def _parse(value: object) -> list:
-    path = Path(tempfile.mktemp(suffix=".json"))
-    path.write_text(json.dumps(value), encoding="utf-8")
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tmp:
+        tmp.write(json.dumps(value))
+        path = Path(tmp.name)
     try:
         return parse_collection(path)
     finally:
@@ -119,8 +120,9 @@ def test_scalar_items_are_skipped() -> None:
 
 def test_deeply_nested_folders_raise_value_error() -> None:
     raw = "{" + '"item":[{"name":"f","item":' * 2000 + "[]" + "}]" * 2000 + "}"
-    path = Path(tempfile.mktemp(suffix=".json"))
-    path.write_text(raw, encoding="utf-8")
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tmp:
+        tmp.write(raw)
+        path = Path(tmp.name)
     try:
         parse_collection(path)
     except ValueError:
