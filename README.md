@@ -58,12 +58,37 @@ BASE_URL=https://staging.example.com pytest generated_tests/test_api.py -v
 
 | Flag | Required | Description |
 |------|----------|-------------|
-| `--collection` | ✅ | Path to Postman Collection v2.1 JSON |
+| `--collection` | ✅ | Path to the input file: a Postman Collection v2.1 JSON, or an OpenAPI 3.x spec with `--input-format openapi` |
 | `--out` | ✅ | Output path for generated pytest file |
+| `--input-format` | ❌ | `postman` (default) or `openapi` (OpenAPI 3.x JSON or YAML) |
 | `--base-url` | ❌ | Tip printed after generation (does not override env var) |
 | `--filter-folder` | ❌ | Generate tests only for the named Postman folder |
 | `--env` | ❌ | Postman environment JSON export to resolve `{{variables}}` |
 | `--max-input-mb` | ❌ | Refuse to load collections larger than this many MB (default: 100) |
+
+### OpenAPI 3.x input
+
+If your API is documented as an OpenAPI 3.x spec instead of a Postman
+collection, pass `--input-format openapi`. JSON and YAML specs are both
+accepted:
+
+```bash
+postman2pytest \
+  --collection openapi/my_api.yaml \
+  --input-format openapi \
+  --out generated_tests/test_api.py
+```
+
+The generated suite has the same shape as the Postman path. Path parameters
+(`/users/{id}`), query parameters, and header parameters map to `os.environ`
+lookups, and a JSON request body is generated from the operation's example or
+schema. Operations are grouped by their first tag (used as the folder name), so
+`--filter-folder` works the same way.
+
+Notes for this first version: the base URL always comes from the `BASE_URL`
+environment variable, so any path in the spec's `servers` list is ignored (put
+the version prefix in `BASE_URL`). `$ref` references are not resolved, so a
+request body defined purely by a `$ref` is generated empty.
 
 To regenerate tests for one folder, pass its Postman folder name:
 
