@@ -59,7 +59,7 @@ def _inline_env_tokens(value: str, env: PostmanEnvironment | None) -> str:
     return _ENV_VAR_RE.sub(repl, value)
 
 
-def _strip_base_url(url: str, fixture_mode: bool = False) -> str:
+def _strip_base_url(url: str, fixture_mode: bool = False, strip_leading: bool = True) -> str:
     """
     Transform ENV_xxx URLs for use in f-strings inside generated tests.
 
@@ -77,12 +77,13 @@ def _strip_base_url(url: str, fixture_mode: bool = False) -> str:
     """
     if url.startswith(("http://", "https://")):
         return url
-    url = _ENV_PREFIX_RE.sub("", url)
+    if strip_leading:
+        url = _ENV_PREFIX_RE.sub("", url)
     url = _ENV_VAR_RE.sub(lambda m: _token_repr(m.group(1), fixture_mode), url)
     return url
 
 
-def _render_url(url: str, env: PostmanEnvironment | None = None) -> str:
+def _render_url(url: str, env: PostmanEnvironment | None = None, strip_leading: bool = True) -> str:
     """Render a URL as a Python expression for the generated test code.
 
     When an environment is provided, non-secret known variables are inlined
@@ -110,7 +111,7 @@ def _render_url(url: str, env: PostmanEnvironment | None = None) -> str:
         # base_url followed by a path variable). Render as an f-string so the
         # remaining tokens are interpolated instead of leaking as raw text.
         return 'f"' + _interpolate(url, fixture_mode) + '"'
-    stripped = _strip_base_url(url, fixture_mode=fixture_mode)
+    stripped = _strip_base_url(url, fixture_mode=fixture_mode, strip_leading=strip_leading)
     return 'f"{BASE_URL}/' + stripped + '"'
 
 
@@ -238,7 +239,7 @@ def _collect_fixtures(req: ParsedRequest, env: PostmanEnvironment | None) -> lis
         names.update(n for n in _ENV_VAR_RE.findall(text) if _is_safe_fixture_name(n))
 
     url = _inline_env_tokens(req.url, env)
-    if not url.startswith(("http://", "https://")):
+    if not url.startswith(("http://", "https://")) and req.strip_leading_url_var:
         url = _ENV_PREFIX_RE.sub("", url)  # relative: leading var -> BASE_URL, not a fixture
     _add_safe(url)  # remaining url vars (absolute or relative)
 
@@ -276,7 +277,9 @@ def generate(
     )
     env.filters["tojson"] = _to_python_repr
     env.filters["strip_base_url"] = _strip_base_url
-    env.filters["render_url"] = lambda url: _render_url(url, postman_env)
+    env.filters["render_url"] = lambda url, strip_leading=True: _render_url(
+        url, postman_env, strip_leading
+    )
     env.filters["render_header_value"] = lambda value: _render_header_value(value, postman_env)
 
     template = env.get_template("test_collection.jinja2")

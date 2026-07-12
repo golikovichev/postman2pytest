@@ -173,6 +173,11 @@ class ParsedRequest(BaseModel):
     assertions: list[Assertion] = []  # translated from Postman test scripts
     folder: str | None
     final_test_name: str = ""  # filled by _disambiguate after parse
+    # Postman collections carry the base URL as the leading {{var}} of each URL,
+    # which the generator strips before prepending BASE_URL. OpenAPI paths never
+    # do; a leading path parameter (/{tenant}/...) must NOT be stripped. Parsers
+    # that emit base-URL-relative paths set this False.
+    strip_leading_url_var: bool = True
 
     @field_validator("method")
     @classmethod

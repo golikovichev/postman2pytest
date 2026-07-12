@@ -23,7 +23,7 @@ def {{ name }}():
 {% for req in requests %}
 def {{ req.test_name }}({{ params_per_request[loop.index0] }}):
     """{{ req.method }} {{ req.url }}{% if req.folder %} ({{ req.folder }}){% endif %}"""
-    url = {{ req.url | render_url }}
+    url = {{ req.url | render_url(req.strip_leading_url_var) }}
     {% set non_auth = non_auth_per_request[loop.index0] %}
     {% if has_auth_per_request[loop.index0] or non_auth %}
     headers = {

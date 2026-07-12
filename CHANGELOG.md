@@ -9,6 +9,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- OpenAPI 3.x specs are accepted as an alternative input format (closes #10).
+  Pass `--input-format openapi` to generate a pytest suite from an OpenAPI 3.x
+  JSON or YAML spec instead of a Postman collection. A new `core/openapi_parser`
+  maps each operation to the same `ParsedRequest` shape the Postman parser
+  emits, so the generator and templates are unchanged: path parameters
+  (`/users/{id}`), query parameters, and header parameters become `os.environ`
+  placeholders, a JSON request body is built from the operation example or
+  schema, the expected status is the lowest 2xx response, and operations are
+  grouped by their first tag so `--filter-folder` works. Default input format
+  stays `postman`, so existing behaviour is unchanged. Adds a `pyyaml`
+  dependency for YAML specs.
 - Auth headers now extract into a shared `auth_headers` fixture (closes #2).
   Authorization Bearer/Basic and API-key headers are detected, pulled out of
   each generated test, and centralised in an `auth_headers` fixture written to a

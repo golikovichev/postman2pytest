@@ -14,6 +14,7 @@ from pathlib import Path
 
 from core.environment import load_environment
 from core.generator import generate
+from core.openapi_parser import parse_openapi, spec_title
 from core.parser import ParsedRequest, parse_collection
 
 try:
@@ -43,7 +44,17 @@ def main() -> int:
     )
     parser.add_argument("--version", action="version", version=f"postman2pytest {__version__}")
     parser.add_argument(
-        "--collection", required=True, help="Path to Postman Collection JSON file (.json)"
+        "--collection",
+        required=True,
+        help="Path to the input file: a Postman Collection (.json) or, with "
+        "--input-format openapi, an OpenAPI 3.x spec (.json/.yaml)",
+    )
+    parser.add_argument(
+        "--input-format",
+        choices=["postman", "openapi"],
+        default="postman",
+        help="Input format: 'postman' (Postman Collection v2.1, default) or "
+        "'openapi' (OpenAPI 3.x JSON or YAML)",
     )
     parser.add_argument(
         "--out",
@@ -88,21 +99,25 @@ def main() -> int:
         )
         return 1
 
-    try:
-        collection_name = (
-            json.loads(collection_path.read_text(encoding="utf-8"))
-            .get("info", {})
-            .get("name", collection_path.stem)
-        )
-    except (json.JSONDecodeError, OSError, KeyError) as exc:
-        logger.warning(
-            "Could not read collection name from %s: %s. Falling back to file stem.",
-            collection_path,
-            exc,
-        )
-        collection_name = collection_path.stem
+    if args.input_format == "openapi":
+        collection_name = spec_title(collection_path) or collection_path.stem
+        requests = parse_openapi(collection_path)
+    else:
+        try:
+            collection_name = (
+                json.loads(collection_path.read_text(encoding="utf-8"))
+                .get("info", {})
+                .get("name", collection_path.stem)
+            )
+        except (json.JSONDecodeError, OSError, KeyError) as exc:
+            logger.warning(
+                "Could not read collection name from %s: %s. Falling back to file stem.",
+                collection_path,
+                exc,
+            )
+            collection_name = collection_path.stem
 
-    requests = parse_collection(collection_path)
+        requests = parse_collection(collection_path)
     if args.filter_folder:
         requests = filter_requests_by_folder(requests, args.filter_folder)
         if not requests:
