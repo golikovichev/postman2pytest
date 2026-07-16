@@ -4,6 +4,7 @@
 [![CodeQL](https://github.com/golikovichev/postman2pytest/actions/workflows/codeql.yml/badge.svg)](https://github.com/golikovichev/postman2pytest/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/golikovichev/postman2pytest/branch/main/graph/badge.svg)](https://codecov.io/gh/golikovichev/postman2pytest)
 [![PyPI](https://img.shields.io/pypi/v/postman2pytest)](https://pypi.org/project/postman2pytest/)
+[![Downloads](https://static.pepy.tech/badge/postman2pytest)](https://pepy.tech/project/postman2pytest)
 [![Downloads](https://static.pepy.tech/badge/postman2pytest/month)](https://pepy.tech/project/postman2pytest)
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12%20|%203.13-blue)](https://pypi.org/project/postman2pytest/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
