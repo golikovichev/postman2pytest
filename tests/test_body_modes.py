@@ -133,14 +133,45 @@ def test_parser_formdata_file_only_falls_back_to_no_body(tmp_path):
     assert reqs[0].body_mode == "raw"
 
 
-def test_parser_duplicate_urlencoded_keys_last_wins(tmp_path):
-    # Known limitation: the dict model collapses repeated keys (last value wins).
+def test_parser_duplicate_urlencoded_keys_preserved(tmp_path):
+    # Repeated keys keep every value. A dict cannot hold duplicates, so the
+    # parser falls back to a list of (key, value) pairs, which requests sends
+    # as multiple fields with the same name.
     body = {
         "mode": "urlencoded",
         "urlencoded": [{"key": "scope", "value": "read"}, {"key": "scope", "value": "write"}],
     }
     reqs = parse_collection(_write_collection(tmp_path, body))
-    assert reqs[0].form_fields == {"scope": "write"}
+    assert reqs[0].form_fields == [("scope", "read"), ("scope", "write")]
+
+
+def test_parser_unique_keys_stay_dict(tmp_path):
+    # Without duplicates the parser keeps the idiomatic dict form.
+    body = {
+        "mode": "urlencoded",
+        "urlencoded": [
+            {"key": "grant_type", "value": "password"},
+            {"key": "scope", "value": "read"},
+        ],
+    }
+    reqs = parse_collection(_write_collection(tmp_path, body))
+    assert reqs[0].form_fields == {"grant_type": "password", "scope": "read"}
+
+
+def test_generate_duplicate_keys_output_compiles_and_keeps_values(tmp_path):
+    import py_compile
+
+    req = _form_req(
+        body_mode="urlencoded",
+        form_fields=[("scope", "read"), ("scope", "write")],
+    )
+    out = tmp_path / "test_api.py"
+    generate([req], collection_name="API", output_path=out)
+    py_compile.compile(str(out), doraise=True)  # raises SyntaxError if invalid
+    content = out.read_text(encoding="utf-8")
+    assert "data=" in content
+    assert content.count('"scope"') == 2
+    assert '"read"' in content and '"write"' in content
 
 
 def test_generate_urlencoded_output_compiles(tmp_path):

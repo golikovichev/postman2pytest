@@ -235,10 +235,11 @@ collection.
   argument on the request. File-type form fields (uploads) are still skipped.
   Tracked in
   [issue #1](https://github.com/golikovichev/postman2pytest/issues/1).
-- ⚠ **Form bodies render as `data=` (urlencoded).** Repeated form keys collapse
-  to the last value, and a hand-set `multipart/form-data` Content-Type header
-  will not match the urlencoded body. Adjust by hand if your endpoint needs
-  multipart or multi-value keys.
+- ⚠ **Form bodies render as `data=` (urlencoded).** Repeated form keys are now
+  preserved: the field renders as a list of `(key, value)` pairs so requests
+  sends every value. A hand-set `multipart/form-data` Content-Type header still
+  will not match the urlencoded body, so adjust by hand if your endpoint needs
+  true multipart.
 - ⚠ **`auth_headers` is a union across the collection.** Every detected auth
   header goes into one shared fixture, so a request that used a single scheme
   still receives all of them. Split the fixture by hand if your endpoints use

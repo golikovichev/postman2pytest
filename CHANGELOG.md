@@ -9,6 +9,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Repeated form keys in `urlencoded` and `formdata` bodies are preserved.
+  Previously a duplicate field name collapsed to its last value because the
+  parser stored form fields in a dict. The parser now keeps the idiomatic dict
+  when names are unique and falls back to a list of `(key, value)` pairs when a
+  name repeats, so the generated `data=` argument sends every value (for
+  example `scope=read&scope=write`). File-type upload fields are still skipped
+  (#1).
 - OpenAPI 3.x specs are accepted as an alternative input format (closes #10).
   Pass `--input-format openapi` to generate a pytest suite from an OpenAPI 3.x
   JSON or YAML spec instead of a Postman collection. A new `core/openapi_parser`

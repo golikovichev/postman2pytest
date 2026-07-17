@@ -168,7 +168,9 @@ class ParsedRequest(BaseModel):
     headers: dict[str, str]
     body: str | None
     body_mode: str = "raw"  # raw | urlencoded | formdata
-    form_fields: dict[str, str] | None = None  # set for urlencoded / formdata
+    # set for urlencoded / formdata. A dict when field names are unique; a list
+    # of (key, value) pairs when a name repeats, so duplicate keys are preserved.
+    form_fields: dict[str, str] | list[tuple[str, str]] | None = None
     expected_status: int
     assertions: list[Assertion] = []  # translated from Postman test scripts
     folder: str | None
@@ -259,7 +261,7 @@ def _parse_item(
 
         body: str | None = None
         body_mode = "raw"
-        form_fields: dict[str, str] | None = None
+        form_fields: dict[str, str] | list[tuple[str, str]] | None = None
         body_obj = request.get("body")
         if body_obj:
             mode = body_obj.get("mode")
@@ -268,7 +270,7 @@ def _parse_item(
                 if raw:
                     body = raw
             elif mode in ("urlencoded", "formdata"):
-                fields: dict[str, str] = {}
+                pairs: list[tuple[str, str]] = []
                 for f in body_obj.get(mode, []):
                     if not f.get("key") or f.get("disabled"):
                         continue
@@ -276,10 +278,14 @@ def _parse_item(
                     # render text fields only (file upload is a separate roadmap item).
                     if mode == "formdata" and f.get("type") == "file":
                         continue
-                    fields[f["key"]] = _replace_vars(f.get("value", ""))
-                if fields:
+                    pairs.append((f["key"], _replace_vars(f.get("value", ""))))
+                if pairs:
                     body_mode = mode
-                    form_fields = fields
+                    keys = [k for k, _ in pairs]
+                    # Keep the idiomatic dict form when names are unique; fall back
+                    # to the pair list only when a name repeats, so no value is
+                    # silently dropped (requests sends both as repeated fields).
+                    form_fields = dict(pairs) if len(set(keys)) == len(keys) else pairs
 
         events = item.get("event", [])
         expected_status = _extract_status(events) or 200
