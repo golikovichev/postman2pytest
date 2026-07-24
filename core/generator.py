@@ -111,18 +111,35 @@ def _render_url(url: str, env: PostmanEnvironment | None = None, strip_leading: 
         # base_url followed by a path variable). Render as an f-string so the
         # remaining tokens are interpolated instead of leaking as raw text.
         return 'f"' + _interpolate(url, fixture_mode) + '"'
-    stripped = _strip_base_url(url, fixture_mode=fixture_mode, strip_leading=strip_leading)
-    return 'f"{BASE_URL}/' + stripped + '"'
+    # Relative URL. Strip the leading base-URL variable (it maps to BASE_URL),
+    # then build the f-string body via _interpolate so literal segments are
+    # escaped. _strip_base_url does the token substitution but NOT the literal
+    # escaping, so a URL carrying a brace / quote / backslash (e.g. an inline
+    # JSON query param ?filter={"x":1}) produced invalid Python. Reusing
+    # _interpolate keeps URL and header rendering on the same escaping path.
+    if strip_leading:
+        url = _ENV_PREFIX_RE.sub("", url)
+    return 'f"{BASE_URL}/' + _interpolate(url, fixture_mode) + '"'
 
 
 def _escape_fstring_literal(literal: str) -> str:
     """Escape a literal segment for embedding inside a Python f-string.
 
     f-strings interpret backslash, the outer-quote char, and brace pairs.
-    Each must be rewritten so the parser reads the original characters
-    back as data, not as syntax.
+    A single-line f-string is also terminated by a raw newline or carriage
+    return, so those are rewritten to their escape sequences too. Each must
+    be rewritten so the parser reads the original characters back as data,
+    not as syntax.
     """
-    return literal.replace("\\", "\\\\").replace('"', '\\"').replace("{", "{{").replace("}", "}}")
+    return (
+        literal.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("{", "{{")
+        .replace("}", "}}")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
 
 
 def _interpolate(value: str, fixture_mode: bool) -> str:
@@ -276,6 +293,7 @@ def generate(
         lstrip_blocks=True,
     )
     env.filters["tojson"] = _to_python_repr
+    env.filters["docstring"] = _docstring_safe
     env.filters["strip_base_url"] = _strip_base_url
     env.filters["render_url"] = lambda url, strip_leading=True: _render_url(
         url, postman_env, strip_leading
@@ -342,3 +360,19 @@ def _to_python_repr(value: object) -> str:
     import json
 
     return json.dumps(value, ensure_ascii=False)
+
+
+def _docstring_safe(value: object) -> str:
+    """Escape a value for safe embedding inside a triple-quoted docstring.
+
+    The generated tests carry the request URL and collection name in a
+    triple-double-quoted (\"\"\") docstring. Both are untrusted collection
+    text: a value ending in a double-quote, containing a \"\"\" run, or
+    ending in a backslash would otherwise terminate (or escape past) the
+    docstring delimiter and break the whole module. Escaping every backslash
+    and double-quote neutralises that (a \"\"\" run becomes three escaped
+    quotes that cannot close the delimiter) while keeping the text readable.
+    Safety is coupled to the template using \"\"\": if it ever switches to
+    ''', this would need to escape the single-quote instead.
+    """
+    return str(value).replace("\\", "\\\\").replace('"', '\\"')

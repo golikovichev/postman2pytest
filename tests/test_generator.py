@@ -318,3 +318,91 @@ def test_render_url_absolute_emits_json_literal():
 def test_render_url_relative_emits_base_url_fstring():
     """Relative URL builds an f-string with the BASE_URL prefix."""
     assert _render_url("ENV_base_url/api/v1/users") == 'f"{BASE_URL}/api/v1/users"'
+
+
+# Adversarial URL values. The header path escapes f-string metacharacters
+# (see test_header_value_with_* above), but the relative-URL path was built
+# from _strip_base_url, which did NOT escape literals. A URL carrying a
+# double quote, a backslash, or a literal brace therefore produced invalid
+# Python (unterminated f-string / stray replacement field). Common real
+# trigger: an inline-JSON query param like ?filter={"status":"active"}.
+
+
+def test_url_with_double_quote_is_safe(tmp_path):
+    out = tmp_path / "test_api.py"
+    req = _req(url='ENV_base_url/search?q="hello"')
+    generate([req], collection_name="API", output_path=out)
+    code = out.read_text(encoding="utf-8")
+    compile(code, str(out), "exec")  # was SyntaxError: unterminated f-string
+
+
+def test_url_with_inline_json_query_param_is_safe(tmp_path):
+    out = tmp_path / "test_api.py"
+    req = _req(url='ENV_base_url/search?filter={"status":"active"}')
+    generate([req], collection_name="API", output_path=out)
+    code = out.read_text(encoding="utf-8")
+    compile(code, str(out), "exec")
+
+
+def test_url_with_braces_is_safe(tmp_path):
+    out = tmp_path / "test_api.py"
+    req = _req(url="ENV_base_url/items/{item_id}/detail")
+    generate([req], collection_name="API", output_path=out)
+    code = out.read_text(encoding="utf-8")
+    compile(code, str(out), "exec")
+
+
+def test_url_with_backslash_is_safe(tmp_path):
+    out = tmp_path / "test_api.py"
+    req = _req(url="ENV_base_url/path\\to\\thing")
+    generate([req], collection_name="API", output_path=out)
+    code = out.read_text(encoding="utf-8")
+    compile(code, str(out), "exec")
+
+
+def test_url_with_newline_is_safe(tmp_path):
+    out = tmp_path / "test_api.py"
+    req = _req(url="ENV_base_url/foo\nbar")
+    generate([req], collection_name="API", output_path=out)
+    code = out.read_text(encoding="utf-8")
+    compile(code, str(out), "exec")  # was SyntaxError: unterminated f-string
+
+
+def test_url_with_carriage_return_is_safe(tmp_path):
+    out = tmp_path / "test_api.py"
+    req = _req(url="ENV_base_url/foo\rbar")
+    generate([req], collection_name="API", output_path=out)
+    code = out.read_text(encoding="utf-8")
+    compile(code, str(out), "exec")
+
+
+def test_render_url_relative_newline_preserved_at_runtime():
+    """A newline in a relative URL survives as data, not as a source-line break."""
+    expr = _render_url("ENV_base_url/foo\nbar")
+    rendered = eval(expr, {"BASE_URL": "https://api.example.com"})  # noqa: S307
+    assert rendered == "https://api.example.com/foo\nbar"
+
+
+def test_render_url_relative_literal_brace_preserved_at_runtime():
+    """A literal brace in a relative URL must survive as data, not become an
+    f-string replacement field. It is doubled so the f-string renders it back."""
+    expr = _render_url("ENV_base_url/items/{item_id}/detail")
+    rendered = eval(expr, {"BASE_URL": "https://api.example.com"})  # noqa: S307
+    assert rendered == "https://api.example.com/items/{item_id}/detail"
+
+
+def test_render_url_relative_json_query_param_valid_and_correct():
+    expr = _render_url('ENV_base_url/search?filter={"status":"active"}')
+    rendered = eval(expr, {"BASE_URL": "https://api.example.com"})  # noqa: S307
+    assert rendered == 'https://api.example.com/search?filter={"status":"active"}'
+
+
+def test_collection_name_with_quotes_docstring_is_safe(tmp_path):
+    """Collection name and URL land in triple-quoted docstrings. Untrusted
+    text with a trailing quote or a ''' run must not terminate the docstring
+    and break the module."""
+    out = tmp_path / "test_api.py"
+    req = _req(url='ENV_base_url/x?q="v"')
+    generate([req], collection_name='My """API""" \\ end"', output_path=out)
+    code = out.read_text(encoding="utf-8")
+    compile(code, str(out), "exec")
