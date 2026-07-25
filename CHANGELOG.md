@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-25
+
 ### Added
 
 - Repeated form keys in `urlencoded` and `formdata` bodies are preserved.
@@ -37,11 +39,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   in an auth header become `os.environ` lookups in the fixture. The fixture is a
   union across the collection; conflicting schemes are noted in the README
   limitations.
+- Postman environment variables resolve through `--env` (#22). Pass `--env
+  <environment.json>` with a Postman environment export: non-secret variables
+  are inlined as literal values in the generated tests, while variables marked
+  secret in the export, and any variable absent from it, become named pytest
+  fixtures so a secret value never lands in the generated source. Resolution
+  covers URLs and headers; a name that is not a valid, non-colliding Python
+  identifier falls back to an `os.environ` lookup so the file always compiles.
+  Without `--env`, behaviour is unchanged.
 - Property-based fuzz tests for the collection parser (Hypothesis), feeding it
   arbitrary and deliberately malformed JSON to keep its failure modes graceful.
 
 ### Fixed
 
+- Control characters and quotes in a generated URL or docstring are now escaped.
+  A newline, carriage return, tab, or quote carried through from a collection
+  value could break the generated Python string literal or f-string; the value
+  is escaped so the emitted test stays valid source.
 - A non-dict sub-structure inside an item no longer aborts the whole parse. A
   `request`, header element, `body`, or form field arriving as a string or
   `null` made a `.get(...)` call raise `AttributeError`, which was not in the
