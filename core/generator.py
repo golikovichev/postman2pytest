@@ -204,6 +204,43 @@ def _auth_env_name(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "_", name).strip("_").upper()
 
 
+def _file_env_name(key: str) -> str:
+    """Environment variable name for a formdata file field's local path.
+
+    The upload path is never hardcoded (it would be the collection author's
+    local path). It becomes an env placeholder, e.g. `document` -> DOCUMENT_FILE,
+    `profile pic` -> PROFILE_PIC_FILE, defaulting to the source basename.
+
+    An all-non-ASCII key collapses to `_FILE` (same shape as `_auth_env_name`),
+    so two such keys would share one env override; the distinct basename
+    defaults still differ, so the generated code stays correct.
+    """
+    return re.sub(r"[^A-Za-z0-9]+", "_", key).strip("_").upper() + "_FILE"
+
+
+def _render_files(file_fields: list[tuple[str, str]]) -> str:
+    """Python expression for a requests `files=` argument.
+
+    Each file field opens a path read from an env placeholder, defaulting to the
+    source basename. Unique keys render an idiomatic dict; a repeated key falls
+    back to a list of tuples so every upload survives (a dict would drop one).
+    """
+    import json
+
+    keys = [k for k, _ in file_fields]
+    unique = len(set(keys)) == len(keys)
+    entries: list[str] = []
+    for key, filename in file_fields:
+        opener = (
+            f'open(os.environ.get({json.dumps(_file_env_name(key))}, {json.dumps(filename)}), "rb")'
+        )
+        entries.append(
+            f"{json.dumps(key)}: {opener}" if unique else f"({json.dumps(key)}, {opener})"
+        )
+    body = ", ".join(entries)
+    return "{" + body + "}" if unique else "[" + body + "]"
+
+
 def _render_auth_value(name: str, value: str, env: PostmanEnvironment | None) -> str:
     """Python expression for one auth header value in the auth_headers fixture.
 
@@ -293,6 +330,7 @@ def generate(
         lstrip_blocks=True,
     )
     env.filters["tojson"] = _to_python_repr
+    env.filters["render_files"] = _render_files
     env.filters["docstring"] = _docstring_safe
     env.filters["strip_base_url"] = _strip_base_url
     env.filters["render_url"] = lambda url, strip_leading=True: _render_url(

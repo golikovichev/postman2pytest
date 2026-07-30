@@ -7,6 +7,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Multipart file uploads in `formdata` bodies now generate a requests `files=`
+  argument instead of being skipped. Each file field renders as
+  `open(os.environ.get("<KEY>_FILE", "<basename>"), "rb")`, so only the basename
+  of the Postman `src` path is kept as the default and the collection author's
+  local path never lands in the generated code; point the `<KEY>_FILE` env var
+  at a real file at test time. A body that mixes text and file fields sends both
+  `data=` and `files=`, a repeated file key falls back to the list-of-tuples
+  `files=` form so every upload survives, and a list `src` expands to one entry
+  per path.
+
 ## [1.3.0] - 2026-07-25
 
 ### Added

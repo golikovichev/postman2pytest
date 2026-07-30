@@ -230,11 +230,14 @@ collection.
   JS, nested-field or array-length checks, JSON schema validation, and
   `pm.variables.set(...)` calls) is skipped rather than mistranslated, so a
   generated test never carries a broken assert.
-- ⚠ **Multipart file uploads are not generated yet.** Text fields in
-  `urlencoded` and `formdata` bodies are now rendered as a `data={...}`
-  argument on the request. File-type form fields (uploads) are still skipped.
-  Tracked in
-  [issue #1](https://github.com/golikovichev/postman2pytest/issues/1).
+- ⚠ **Multipart file uploads render as `files=`, but the file must exist at
+  test time.** A `formdata` file field becomes
+  `files={"document": open(os.environ.get("DOCUMENT_FILE", "report.pdf"), "rb")}`.
+  Only the basename from the Postman `src` is kept (the author's local path
+  never lands in the generated code); it is the default for a `<KEY>_FILE` env
+  var you point at a real file. Text and file fields in the same body send both
+  `data=` and `files=`. The opened handle is not explicitly closed, which is
+  fine for a short-lived smoke test.
 - ⚠ **Form bodies render as `data=` (urlencoded).** Repeated form keys are now
   preserved: the field renders as a list of `(key, value)` pairs so requests
   sends every value. A hand-set `multipart/form-data` Content-Type header still
@@ -260,10 +263,9 @@ slice of the collection that demonstrates it.
 Short list of what is next, roughly in priority order. Tracked in detail on
 the [issues board](https://github.com/golikovichev/postman2pytest/issues).
 
-- **Multipart file upload support**: `urlencoded` and `formdata` text fields
-  now render as `data={...}` (OAuth-token-endpoint cases work). File-type
-  upload fields are still skipped.
-  ([#1](https://github.com/golikovichev/postman2pytest/issues/1))
+- **Multipart file upload support**: done. `formdata` text fields render as
+  `data={...}` (OAuth-token-endpoint cases work) and file fields render as
+  `files={...}` with a `<KEY>_FILE` env placeholder (see Limitations).
 - **Auth-header fixtures**
   ([#2](https://github.com/golikovichev/postman2pytest/issues/2)): done. Auth
   headers now extract into a shared `auth_headers` fixture (see Supported

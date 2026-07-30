@@ -29,6 +29,19 @@ def _replace_vars(value: str) -> str:
     return _VAR_RE.sub(r"ENV_\1", value)
 
 
+def _file_basename(src: Any) -> str:
+    """Basename of a Postman formdata file `src`, split on both path separators.
+
+    Postman stores an absolute path from the author's machine (Windows or
+    POSIX). Only the basename is kept so that path never leaks into generated
+    code; it serves only as the default filename for an env placeholder.
+    Returns '' for a non-string or empty src.
+    """
+    if not isinstance(src, str) or not src.strip():
+        return ""
+    return re.split(r"[\\/]", src.strip())[-1]
+
+
 def _slugify(text: str) -> str:
     """
     Convert arbitrary text into an ASCII-safe pytest identifier fragment.
@@ -171,6 +184,11 @@ class ParsedRequest(BaseModel):
     # set for urlencoded / formdata. A dict when field names are unique; a list
     # of (key, value) pairs when a name repeats, so duplicate keys are preserved.
     form_fields: dict[str, str] | list[tuple[str, str]] | None = None
+    # formdata file-upload fields, rendered as a requests `files=` argument. A
+    # list of (key, filename) pairs; filename is the basename of the Postman
+    # `src` path (or the key when no src), used only as an env-placeholder
+    # default so the author's local path never lands in generated code.
+    file_fields: list[tuple[str, str]] | None = None
     expected_status: int
     assertions: list[Assertion] = []  # translated from Postman test scripts
     folder: str | None
@@ -262,6 +280,7 @@ def _parse_item(
         body: str | None = None
         body_mode = "raw"
         form_fields: dict[str, str] | list[tuple[str, str]] | None = None
+        file_fields: list[tuple[str, str]] | None = None
         body_obj = request.get("body")
         if body_obj:
             mode = body_obj.get("mode")
@@ -271,12 +290,17 @@ def _parse_item(
                     body = raw
             elif mode in ("urlencoded", "formdata"):
                 pairs: list[tuple[str, str]] = []
+                file_pairs: list[tuple[str, str]] = []
                 for f in body_obj.get(mode, []):
                     if not f.get("key") or f.get("disabled"):
                         continue
-                    # formdata file fields carry no inline value to render;
-                    # render text fields only (file upload is a separate roadmap item).
+                    # formdata file fields carry no inline value; capture them
+                    # separately so the generator renders a requests `files=`
+                    # argument. `src` may be a single path or a list of paths.
                     if mode == "formdata" and f.get("type") == "file":
+                        srcs = f["src"] if isinstance(f.get("src"), list) else [f.get("src")]
+                        for s in srcs:
+                            file_pairs.append((f["key"], _file_basename(s) or f["key"]))
                         continue
                     pairs.append((f["key"], _replace_vars(f.get("value", ""))))
                 if pairs:
@@ -286,6 +310,9 @@ def _parse_item(
                     # to the pair list only when a name repeats, so no value is
                     # silently dropped (requests sends both as repeated fields).
                     form_fields = dict(pairs) if len(set(keys)) == len(keys) else pairs
+                if file_pairs:
+                    body_mode = mode
+                    file_fields = file_pairs
 
         events = item.get("event", [])
         expected_status = _extract_status(events) or 200
@@ -299,6 +326,7 @@ def _parse_item(
                 body=body,
                 body_mode=body_mode,
                 form_fields=form_fields,
+                file_fields=file_fields,
                 expected_status=expected_status,
                 assertions=_extract_assertions(events),
                 folder=folder,

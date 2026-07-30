@@ -37,7 +37,15 @@ def {{ req.test_name }}({{ params_per_request[loop.index0] }}):
     {% else %}
     headers = {}
     {% endif %}
+    {% if req.file_fields %}
+    files = {{ req.file_fields | render_files }}
     {% if req.form_fields %}
+    data = {{ req.form_fields | tojson }}
+    response = requests.{{ req.method | lower }}(url, headers=headers, data=data, files=files)
+    {% else %}
+    response = requests.{{ req.method | lower }}(url, headers=headers, files=files)
+    {% endif %}
+    {% elif req.form_fields %}
     data = {{ req.form_fields | tojson }}
     response = requests.{{ req.method | lower }}(url, headers=headers, data=data)
     {% elif req.body %}

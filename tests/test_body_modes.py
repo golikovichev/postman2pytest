@@ -126,11 +126,14 @@ def test_parser_substitutes_vars_in_form_values(tmp_path):
     assert "{{" not in reqs[0].form_fields["token"]
 
 
-def test_parser_formdata_file_only_falls_back_to_no_body(tmp_path):
+def test_parser_formdata_file_only_captured_as_file_fields(tmp_path):
+    # A file-only formdata body is now a multipart upload, not an empty body.
+    # The file field is captured separately so the generator renders `files=`.
     body = {"mode": "formdata", "formdata": [{"key": "f", "type": "file", "src": "x.png"}]}
     reqs = parse_collection(_write_collection(tmp_path, body))
     assert reqs[0].form_fields is None
-    assert reqs[0].body_mode == "raw"
+    assert reqs[0].file_fields == [("f", "x.png")]
+    assert reqs[0].body_mode == "formdata"
 
 
 def test_parser_duplicate_urlencoded_keys_preserved(tmp_path):
@@ -183,3 +186,136 @@ def test_generate_urlencoded_output_compiles(tmp_path):
     out = tmp_path / "test_api.py"
     generate([req], collection_name="API", output_path=out)
     py_compile.compile(str(out), doraise=True)  # raises SyntaxError if invalid
+
+
+# Formdata file upload (Roadmap #1 - multipart files=)
+
+
+def test_parser_formdata_mixed_text_and_file(tmp_path):
+    # A formdata body mixing text and file fields splits them: text fields go to
+    # form_fields (data=), file fields to file_fields (files=).
+    body = {
+        "mode": "formdata",
+        "formdata": [
+            {"key": "title", "value": "hello", "type": "text"},
+            {"key": "document", "type": "file", "src": "report.pdf"},
+        ],
+    }
+    reqs = parse_collection(_write_collection(tmp_path, body))
+    assert reqs[0].form_fields == {"title": "hello"}
+    assert reqs[0].file_fields == [("document", "report.pdf")]
+
+
+def test_parser_formdata_file_src_basename_from_path(tmp_path):
+    # The default filename is the basename of the source path, so an absolute
+    # path on the collection author's machine does not leak into generated code.
+    body = {
+        "mode": "formdata",
+        "formdata": [{"key": "avatar", "type": "file", "src": "C:\\\\Users\\\\alice\\\\pic.png"}],
+    }
+    reqs = parse_collection(_write_collection(tmp_path, body))
+    assert reqs[0].file_fields == [("avatar", "pic.png")]
+
+
+def test_parser_formdata_file_src_list_expands(tmp_path):
+    # Postman allows a list of sources under one file key (multiple uploads).
+    body = {
+        "mode": "formdata",
+        "formdata": [{"key": "docs", "type": "file", "src": ["a.pdf", "b.pdf"]}],
+    }
+    reqs = parse_collection(_write_collection(tmp_path, body))
+    assert reqs[0].file_fields == [("docs", "a.pdf"), ("docs", "b.pdf")]
+
+
+def test_parser_formdata_file_no_src_defaults_to_key(tmp_path):
+    # A file field with no src still needs a filename hint; fall back to the key.
+    body = {"mode": "formdata", "formdata": [{"key": "upload", "type": "file"}]}
+    reqs = parse_collection(_write_collection(tmp_path, body))
+    assert reqs[0].file_fields == [("upload", "upload")]
+
+
+def test_parser_formdata_file_src_list_with_null_falls_back_to_key(tmp_path):
+    # A null entry inside a src list is not a string; it falls back to the key
+    # rather than crashing or emitting an empty filename.
+    body = {
+        "mode": "formdata",
+        "formdata": [{"key": "docs", "type": "file", "src": ["a.pdf", None]}],
+    }
+    reqs = parse_collection(_write_collection(tmp_path, body))
+    assert reqs[0].file_fields == [("docs", "a.pdf"), ("docs", "docs")]
+
+
+def test_generate_file_env_name_sanitizes_key_with_space(tmp_path):
+    # A key with a space/punctuation maps to an upper snake-case env var, so the
+    # generated os.environ lookup is a valid, predictable name.
+    req = _form_req(
+        name="Upload",
+        url="ENV_base_url/upload",
+        body_mode="formdata",
+        file_fields=[("profile pic", "me.png")],
+    )
+    content = _gen(tmp_path, req)
+    assert 'os.environ.get("PROFILE_PIC_FILE", "me.png")' in content
+
+
+def test_generate_formdata_file_renders_files_open_env(tmp_path):
+    # A file field renders a files= argument whose path is an env placeholder
+    # defaulting to the basename, mirroring how auth secrets stay out of source.
+    req = _form_req(
+        name="Upload",
+        url="ENV_base_url/upload",
+        body_mode="formdata",
+        file_fields=[("document", "report.pdf")],
+    )
+    content = _gen(tmp_path, req)
+    assert "files=" in content
+    assert 'os.environ.get("DOCUMENT_FILE", "report.pdf")' in content
+    assert '"rb"' in content
+
+
+def test_generate_formdata_mixed_data_and_files(tmp_path):
+    # Text plus file fields must send BOTH data= and files= on the same request.
+    req = _form_req(
+        name="Upload",
+        url="ENV_base_url/upload",
+        body_mode="formdata",
+        form_fields={"title": "hello"},
+        file_fields=[("document", "report.pdf")],
+    )
+    content = _gen(tmp_path, req)
+    assert "data=data" in content
+    assert "files=files" in content
+    assert "json=body" not in content
+
+
+def test_generate_formdata_file_output_compiles(tmp_path):
+    import py_compile
+
+    req = _form_req(
+        name="Upload",
+        url="ENV_base_url/upload",
+        body_mode="formdata",
+        file_fields=[("document", "report.pdf")],
+    )
+    out = tmp_path / "test_api.py"
+    generate([req], collection_name="API", output_path=out)
+    py_compile.compile(str(out), doraise=True)  # raises SyntaxError if invalid
+
+
+def test_generate_duplicate_file_keys_list_form_compiles(tmp_path):
+    import py_compile
+
+    # Repeated file keys cannot live in a dict; the generator emits the
+    # list-of-tuples files= form so every upload is preserved.
+    req = _form_req(
+        name="Upload",
+        url="ENV_base_url/upload",
+        body_mode="formdata",
+        file_fields=[("docs", "a.pdf"), ("docs", "b.pdf")],
+    )
+    out = tmp_path / "test_api.py"
+    generate([req], collection_name="API", output_path=out)
+    py_compile.compile(str(out), doraise=True)
+    content = out.read_text(encoding="utf-8")
+    assert content.count('"docs"') == 2
+    assert '"a.pdf"' in content and '"b.pdf"' in content
