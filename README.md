@@ -270,6 +270,13 @@ the [issues board](https://github.com/golikovichev/postman2pytest/issues).
   ([#2](https://github.com/golikovichev/postman2pytest/issues/2)): done. Auth
   headers now extract into a shared `auth_headers` fixture (see Supported
   features).
+- **Two-way sync**: generate an updated Postman collection back from a pytest
+  suite, so the collection and the tests can both stay current instead of the
+  conversion being a one-time export. This is the gap a one-directional
+  converter leaves open.
+- **Drop-in CI action**: a GitHub Action that runs the conversion and then the
+  generated suite from one workflow file, so a `postman_collection.json` in a
+  repo becomes a running pytest job without local setup.
 - **Pre-request script translation, scoped scope**: surface the script,
   even as a `pytest.fixture` stub, so the operator does not lose the auth
   context silently.
