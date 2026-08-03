@@ -20,6 +20,10 @@ updates:
       time: "06:00"
       timezone: "Europe/London"
     open-pull-requests-limit: 3
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
     commit-message:
       prefix: "ci"
       include: scope
