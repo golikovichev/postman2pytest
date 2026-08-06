@@ -9,6 +9,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- The collection's own `variable` block is now read, with no extra flag. Postman
+  stores a base URL there, so a collection exported straight out of the app used
+  to generate a suite pointing at `http://localhost:8080` even though the real
+  host was sitting in the file. Non-secret values are inlined where they are
+  used; a variable marked `secret` in Postman is not. An environment export
+  passed with `--env` is layered on top and wins on a name collision, including
+  its secret flag, so a name declared plainly in the collection and as a secret
+  in the file stays out of the generated source. A collection that declares no
+  variables generates exactly what it did before.
+
 - Multipart file uploads in `formdata` bodies now generate a requests `files=`
   argument instead of being skipped. Each file field renders as
   `open(os.environ.get("<KEY>_FILE", "<basename>"), "rb")`, so only the basename
@@ -18,6 +28,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `data=` and `files=`, a repeated file key falls back to the list-of-tuples
   `files=` form so every upload survives, and a list `src` expands to one entry
   per path.
+
+### Changed
+
+- The base URL is no longer inlined into each request line. It now sets the
+  `BASE_URL` default instead, so a suite generated with `--env` can still be
+  redirected with `BASE_URL=... pytest`. Before this, resolving the base URL
+  turned every URL into an absolute literal and quietly took away the override
+  the CLI itself suggests. Requests reading `{{base_url}}/users` render as
+  `f"{BASE_URL}/users"` with `BASE_URL` defaulting to the resolved value; the
+  effective address is unchanged unless you set the variable.
 
 ## [1.3.0] - 2026-07-25
 

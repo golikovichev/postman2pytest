@@ -102,8 +102,16 @@ postman2pytest \
 ### Resolving environment variables
 
 Postman collections reference variables such as `{{base_url}}` and
-`{{auth_token}}`. Pass a Postman environment export with `--env` to resolve
-them:
+`{{auth_token}}`. These come from two places, and both are read.
+
+A collection carries its own `variable` block, which is where Postman puts a
+base URL. Those values are used automatically, with no extra flag: the leading
+URL variable becomes the default for `BASE_URL`, and the rest are inlined
+where they are used. So a collection exported straight out of Postman usually
+generates a suite that already points at the right host.
+
+For anything the collection does not carry, or to point the same collection at
+another environment, pass an environment export with `--env`:
 
 ```bash
 postman2pytest \
@@ -112,17 +120,28 @@ postman2pytest \
   --env data/prod.postman_environment.json
 ```
 
+- The environment file wins over the collection's own `variable` block on a
+  name collision. The collection is the general case, the file is the specific
+  one.
 - Non-secret variables are inlined as literal values in the generated tests.
-- Variables marked `secret` in the environment, and any variable not present
-  in it, become named pytest fixtures instead. The secret value never lands in
-  the generated source; the fixture reads it from the environment at run time
-  (and can be overridden in your own `conftest.py`).
+- Variables marked `secret`, in either source, and any variable neither source
+  declares, become named pytest fixtures instead. The secret value never lands
+  in the generated source; the fixture reads it from the environment at run
+  time (and can be overridden in your own `conftest.py`).
+- The base URL is never inlined into the request lines. It sets the `BASE_URL`
+  default, so `BASE_URL=https://staging.example.com pytest` still redirects the
+  whole suite.
 
 Resolution covers variables in request URLs and headers. Variables inside
 request bodies and form fields are not resolved yet and are left as-is.
 
-Without `--env`, variables are left as `os.environ.get("name", "")` lookups,
-exactly as before.
+When neither source declares a variable, it stays an `os.environ.get("name",
+"")` lookup, exactly as before.
+
+One caveat worth stating plainly: a credential kept as a plain collection
+variable will be inlined, because nothing marks it as sensitive. Postman's own
+`secret` type is honoured, so set it there, or keep credentials in an
+environment file instead of the collection.
 
 ## Examples
 
@@ -216,11 +235,12 @@ def test_get_users():
 Honest scope so you know what to expect before pointing the tool at a real
 collection.
 
-- **Postman environments need `--env`.** Without it, `{{baseUrl}}` and friends
-  pass through verbatim into the generated `url` strings, so set the `BASE_URL`
-  env var at test time or post-process the file. Pass `--env path/to/env.json`
-  to resolve them: non-secret values are inlined as literals, secret and
-  unknown variables stay as `os.environ` lookups.
+- ⚠ **Variables a collection does not declare still need `--env`.** The
+  collection's own `variable` block is read automatically, but a value that
+  lives only in a Postman environment (a staging host, a tenant id) passes
+  through as an `os.environ` lookup until you pass `--env path/to/env.json`.
+  Non-secret values are then inlined as literals; secret and unknown variables
+  stay as lookups.
 - ❌ **Pre-request scripts are skipped.** Auth that depends on `pm.sendRequest`
   to grab a token before each call (e.g. OAuth client-credentials flows
   refreshing per request) needs manual translation into a pytest fixture.
@@ -249,11 +269,12 @@ collection.
   conflicting auth. The generated `conftest.py` is overwritten on each run and
   is not merged with an existing one.
 - ❌ **Cookies, certificates, and per-request proxy settings are ignored.**
-- ⚠ **Variable substitution is shallow.** Path variables (`/users/:id`)
-  become `{id}` placeholders; collection-level variables are not resolved.
-- ⚠ **Generated `BASE_URL` defaults to an empty string.** Tests that hit a
-  full URL in the Postman item still resolve, but bare path items will fail
-  until the env var is set.
+- ⚠ **Variable substitution is shallow.** Path variables (`/users/:id`) become
+  `{id}` placeholders. A variable whose value is itself written in terms of
+  other variables is inlined as written, not resolved recursively.
+- ⚠ **`BASE_URL` falls back to `http://localhost:8080`.** When the collection
+  names no base URL of its own, bare path items hit localhost until you set the
+  env var. Items carrying a full URL resolve either way.
 
 If a missing feature is blocking you, please open an issue with a redacted
 slice of the collection that demonstrates it.

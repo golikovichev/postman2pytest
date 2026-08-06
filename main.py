@@ -12,7 +12,7 @@ import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-from core.environment import load_environment
+from core.environment import Environment, load_environment
 from core.generator import generate
 from core.openapi_parser import parse_openapi, spec_title
 from core.parser import ParsedRequest, parse_collection
@@ -99,19 +99,19 @@ def main() -> int:
         )
         return 1
 
+    collection_env = None
     if args.input_format == "openapi":
         collection_name = spec_title(collection_path) or collection_path.stem
         requests = parse_openapi(collection_path)
     else:
         try:
-            collection_name = (
-                json.loads(collection_path.read_text(encoding="utf-8"))
-                .get("info", {})
-                .get("name", collection_path.stem)
-            )
-        except (json.JSONDecodeError, OSError, KeyError) as exc:
+            collection_data = json.loads(collection_path.read_text(encoding="utf-8"))
+            collection_name = collection_data.get("info", {}).get("name", collection_path.stem)
+            collection_env = Environment.from_collection(collection_data)
+        except (json.JSONDecodeError, OSError, KeyError, AttributeError) as exc:
             logger.warning(
-                "Could not read collection name from %s: %s. Falling back to file stem.",
+                "Could not read collection name or variables from %s: %s. "
+                "Falling back to the file stem and no collection variables.",
                 collection_path,
                 exc,
             )
@@ -139,6 +139,11 @@ def main() -> int:
         except (json.JSONDecodeError, OSError) as exc:
             logger.error("Could not read environment file %s: %s", env_path, exc)
             return 1
+
+    # The environment file is the more specific source, so it goes on top of
+    # whatever the collection declares for itself.
+    if collection_env:
+        postman_env = collection_env.overlaid_by(postman_env)
 
     output_path = Path(args.out)
     generate(

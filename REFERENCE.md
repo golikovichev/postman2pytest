@@ -66,7 +66,7 @@ If pytest collection time spikes beyond a few seconds on a 500-request collectio
 - **OAuth flows:** Token refresh is not generated. Set the token in the env var named by the collection's `Authorization` header.
 - **Pre-request scripts:** Postman's JavaScript pre-request scripts are not translated. Rewrite any script-computed headers or signatures in Python before running.
 - **Response-body assertions:** Only the HTTP status code is asserted. Body content is not validated.
-- **Environments file:** Postman environment exports (`*.postman_environment.json`) are not consumed. The generated suite reads `BASE_URL` and credential env vars only.
+- **Variables:** the collection's own `variable` block is read automatically, and an environment export (`*.postman_environment.json`) is read when passed with `--env`, where it takes precedence. Non-secret values are inlined; secret and undeclared ones stay as env-var lookups at run time.
 
 ## CI integration
 

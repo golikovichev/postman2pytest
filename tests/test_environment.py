@@ -120,9 +120,21 @@ def test_render_url_inlines_non_secret_value():
     from core.generator import _render_url
 
     env = _env([{"key": "base_url", "value": "https://api.example.com", "enabled": True}])
+    # Without a base variable named by the caller, every known variable is
+    # inlined, leading one included. generate() is what decides which variable
+    # stands for BASE_URL; see _base_url_choice.
     out = _render_url("ENV_base_url/users", env)
     assert "https://api.example.com/users" in out
     assert "os.environ" not in out
+
+
+def test_render_url_leaves_the_base_variable_to_BASE_URL():
+    from core.generator import _render_url
+
+    # Named as the base variable, it is stripped instead of inlined, so the
+    # generated suite can still be pointed elsewhere with BASE_URL at run time.
+    env = _env([{"key": "base_url", "value": "https://api.example.com", "enabled": True}])
+    assert _render_url("ENV_base_url/users", env, base_var="base_url") == 'f"{BASE_URL}/users"'
 
 
 def test_render_url_unknown_path_var_becomes_fixture_ref():
@@ -220,7 +232,8 @@ def test_generate_emits_fixtures_for_secret_and_unknown(tmp_path: Path):
     assert "def api_ver():" in text  # unknown non-auth var -> module fixture
     assert "SUPERSECRET" not in text  # secret value never inlined
     assert "SUPERSECRET" not in conftest
-    assert "https://api.example.com/users" in text  # non-secret inlined
+    assert 'BASE_URL = os.environ.get("BASE_URL", "https://api.example.com")' in text
+    assert 'url = f"{BASE_URL}/users"' in text  # base_url -> BASE_URL default
     # the test takes its module fixtures plus the shared auth_headers fixture
     assert "(api_ver, auth_headers):" in text
     # both generated files are valid Python
@@ -286,8 +299,10 @@ def test_collect_fixtures_includes_path_var_after_inlined_base(tmp_path: Path):
     text = out.read_text(encoding="utf-8")
     assert "def region():" in text
     assert "(region):" in text
-    # the executable URL resolves the path var to the fixture, not a raw token
-    assert 'url = f"https://api.example.com/orders/{region}"' in text
+    # the executable URL resolves the path var to the fixture, not a raw token,
+    # and stays relative to BASE_URL (whose default is the collection's base_url)
+    assert 'BASE_URL = os.environ.get("BASE_URL", "https://api.example.com")' in text
+    assert 'url = f"{BASE_URL}/orders/{region}"' in text
     compile(text, str(out), "exec")
 
 
@@ -361,3 +376,70 @@ def test_load_environment_malformed_json_raises(tmp_path: Path):
     p.write_text("{ this is not json", encoding="utf-8")
     with pytest.raises(json.JSONDecodeError):
         load_environment(p)
+
+
+# -- from_collection: variables declared in the collection itself --
+
+
+def test_parses_collection_level_variables():
+    data = {
+        "info": {"name": "C"},
+        "variable": [{"key": "baseUrl", "value": "https://api.example.com"}],
+        "item": [],
+    }
+    env = Environment.from_collection(data)
+    assert env.inline_value("baseUrl") == "https://api.example.com"
+
+
+def test_collection_variable_marked_disabled_is_ignored():
+    # Collection variables carry `disabled`, not the environment export's `enabled`.
+    data = {"variable": [{"key": "baseUrl", "value": "https://old", "disabled": True}]}
+    env = Environment.from_collection(data)
+    assert env.inline_value("baseUrl") is None
+
+
+def test_secret_collection_variable_is_not_inlined():
+    data = {"variable": [{"key": "token", "value": "s3cr3t", "type": "secret"}]}
+    env = Environment.from_collection(data)
+    assert env.needs_fixture("token")
+
+
+def test_collection_without_variable_key_yields_empty_environment():
+    env = Environment.from_collection({"info": {"name": "C"}, "item": []})
+    assert env.inline_value("anything") is None
+
+
+def test_non_list_variable_block_is_tolerated():
+    env = Environment.from_collection({"variable": "not a list"})
+    assert env.inline_value("anything") is None
+
+
+# -- overlaid_by: the environment file wins over collection variables --
+
+
+def test_environment_file_value_wins_over_collection_value():
+    collection = Environment.from_collection(
+        {"variable": [{"key": "baseUrl", "value": "https://collection"}]}
+    )
+    from_file = Environment.from_postman_export(
+        {"values": [{"key": "baseUrl", "value": "https://from-env-file"}]}
+    )
+    assert collection.overlaid_by(from_file).inline_value("baseUrl") == "https://from-env-file"
+
+
+def test_collection_value_survives_when_environment_file_omits_it():
+    collection = Environment.from_collection(
+        {"variable": [{"key": "baseUrl", "value": "https://collection"}]}
+    )
+    from_file = Environment.from_postman_export({"values": [{"key": "other", "value": "x"}]})
+    assert collection.overlaid_by(from_file).inline_value("baseUrl") == "https://collection"
+
+
+def test_secret_in_environment_file_hides_a_plain_collection_value():
+    # The same name declared plainly in the collection and as a secret in the
+    # environment file must not be inlined: the stricter declaration wins.
+    collection = Environment.from_collection({"variable": [{"key": "token", "value": "plain"}]})
+    from_file = Environment.from_postman_export(
+        {"values": [{"key": "token", "value": "s3cr3t", "type": "secret"}]}
+    )
+    assert collection.overlaid_by(from_file).needs_fixture("token")

@@ -31,6 +31,28 @@ class _EnvVar:
     secret: bool
 
 
+def _read_entries(entries: Any) -> dict[str, _EnvVar]:
+    """Read a Postman variable list into a name -> value mapping.
+
+    Shared by the environment-export and collection shapes, which differ only
+    in where the list lives and in how they spell exclusion. Entries without a
+    key, excluded entries and non-object entries are skipped. A missing flag
+    means included; a missing ``type`` means non-secret.
+    """
+    variables: dict[str, _EnvVar] = {}
+    for entry in entries or []:
+        if not isinstance(entry, dict):
+            continue
+        key = entry.get("key")
+        if not key:
+            continue
+        if entry.get("enabled", True) is False or entry.get("disabled", False) is True:
+            continue
+        secret = entry.get("type") == "secret"
+        variables[key] = _EnvVar(value=str(entry.get("value", "")), secret=secret)
+    return variables
+
+
 class Environment:
     """Resolved Postman environment variables."""
 
@@ -45,18 +67,46 @@ class Environment:
         ``enabled`` flag is treated as enabled (Postman omits it for active
         variables). A missing ``type`` is treated as non-secret.
         """
-        variables: dict[str, _EnvVar] = {}
-        for entry in data.get("values") or []:
-            if not isinstance(entry, dict):
-                continue
-            key = entry.get("key")
-            if not key:
-                continue
-            if entry.get("enabled", True) is False:
-                continue
-            secret = entry.get("type") == "secret"
-            variables[key] = _EnvVar(value=str(entry.get("value", "")), secret=secret)
-        return cls(variables)
+        return cls(_read_entries(data.get("values")))
+
+    @classmethod
+    def from_collection(cls, data: dict[str, Any]) -> Environment:
+        """Build an Environment from the ``variable`` block of a collection.
+
+        A Postman collection carries its own variables at the root::
+
+            {"info": {...}, "variable": [{"key": "baseUrl", "value": "https://..."}], "item": [...]}
+
+        This is where Postman itself puts a base URL, so a collection often
+        arrives with the value already in the file and no separate environment
+        export. Note the flag: collection variables mark exclusion with
+        ``disabled: true``, while environment exports use ``enabled: false``.
+        Both spellings are honoured here.
+        """
+        block = data.get("variable")
+        return cls(_read_entries(block if isinstance(block, list) else None))
+
+    def overlaid_by(self, other: Environment | None) -> Environment:
+        """Return a copy of this environment with ``other``'s variables on top.
+
+        Used to layer an environment file over the collection's own variables:
+        the file is the more specific source, so it wins on a name collision.
+        That includes the secret flag, so a name declared plainly in the
+        collection and as a secret in the file stays out of generated code.
+        """
+        if other is None:
+            return self
+        return Environment({**self._vars, **other._vars})
+
+    def __bool__(self) -> bool:
+        """False when no variables were declared.
+
+        Callers use this to tell "no environment" from "an environment that
+        happens to be empty": supplying an empty one would still switch the
+        generator into fixture mode and change the output of every collection
+        that declares no variables at all.
+        """
+        return bool(self._vars)
 
     def inline_value(self, name: str) -> str | None:
         """Return the literal value to inline, or None if the variable must

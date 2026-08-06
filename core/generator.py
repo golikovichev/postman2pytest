@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 _TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 _ENV_PREFIX_RE = re.compile(r"^ENV_\w+/?")
+# Used when the collection names no resolvable base URL of its own.
+_BASE_URL_FALLBACK = "http://localhost:8080"
 _ENV_VAR_RE = re.compile(r"ENV_(\w+)")
 
 # A surviving variable becomes a pytest fixture only when its name is a usable,
@@ -83,7 +85,12 @@ def _strip_base_url(url: str, fixture_mode: bool = False, strip_leading: bool = 
     return url
 
 
-def _render_url(url: str, env: PostmanEnvironment | None = None, strip_leading: bool = True) -> str:
+def _render_url(
+    url: str,
+    env: PostmanEnvironment | None = None,
+    strip_leading: bool = True,
+    base_var: str | None = None,
+) -> str:
     """Render a URL as a Python expression for the generated test code.
 
     When an environment is provided, non-secret known variables are inlined
@@ -102,6 +109,13 @@ def _render_url(url: str, env: PostmanEnvironment | None = None, strip_leading: 
     """
     import json
 
+    # The base variable is stripped before inlining, not after. It maps to
+    # BASE_URL (see _base_url_choice), so resolving it here would turn a
+    # relative URL into an absolute literal and take the address out of the
+    # reader's control at run time.
+    if strip_leading:
+        url = _strip_base_var(url, env, base_var)
+        strip_leading = False
     url = _inline_env_tokens(url, env)
     fixture_mode = env is not None
     if url.startswith(("http://", "https://")):
@@ -119,6 +133,8 @@ def _render_url(url: str, env: PostmanEnvironment | None = None, strip_leading: 
     # _interpolate keeps URL and header rendering on the same escaping path.
     if strip_leading:
         url = _ENV_PREFIX_RE.sub("", url)
+    if not url:
+        return 'f"{BASE_URL}"'  # the whole URL was the base variable
     return 'f"{BASE_URL}/' + _interpolate(url, fixture_mode) + '"'
 
 
@@ -277,7 +293,71 @@ def _split_auth_headers(
     return non_auth, auth_items
 
 
-def _collect_fixtures(req: ParsedRequest, env: PostmanEnvironment | None) -> list[str]:
+_LEADING_VAR_RE = re.compile(r"^ENV_(\w+)")
+# A leading variable stands for the whole base address only when the path
+# separator (or the end of the URL) comes straight after it. In `{{host}}:{{port}}`
+# the host variable is half an address, and treating it as the base would leave
+# the port stranded at the front of the path.
+_BASE_VAR_RE = re.compile(r"^ENV_(\w+)(?=/|$)")
+
+
+def _base_url_choice(
+    requests: list[ParsedRequest], env: PostmanEnvironment | None, fallback: str
+) -> tuple[str | None, str]:
+    """Pick the variable that stands for BASE_URL, and the default to give it.
+
+    Requests are written relative to BASE_URL, so a leading variable resolving
+    to an absolute address is the collection's own idea of where the API lives,
+    and makes a far better default than a guess. The first such request wins.
+
+    Two things this deliberately does not do. It does not accept a leading
+    variable whose value is not an absolute URL: a tenant slug at the front of
+    a path is a path segment, and promoting it to BASE_URL would both drop the
+    segment and leave the address unusable. And it names the winning variable
+    rather than just its value, so a request leading with a *different* host
+    keeps that host instead of being retargeted to this one.
+
+    Returns (variable name or None, BASE_URL default).
+    """
+    if env is None:
+        return None, fallback
+    for req in requests:
+        if req.url.startswith(("http://", "https://")) or not req.strip_leading_url_var:
+            continue
+        match = _BASE_VAR_RE.match(req.url)
+        if not match:
+            continue
+        resolved = env.inline_value(match.group(1))
+        if resolved and resolved.startswith(("http://", "https://")):
+            return match.group(1), resolved.rstrip("/")
+    return None, fallback
+
+
+def _strip_base_var(url: str, env: PostmanEnvironment | None, base_var: str | None) -> str:
+    """Remove the leading variable when it maps to BASE_URL rather than to text.
+
+    That is the case for the variable chosen as BASE_URL, and for one that
+    resolves to nothing at all (unknown, or secret), which is where an
+    unresolved leading variable has always gone. Any other leading variable is
+    left in place to be inlined as a literal path segment.
+
+    _render_url and _collect_fixtures both go through here, or the two would
+    disagree about which names still need a fixture.
+    """
+    match = _LEADING_VAR_RE.match(url)
+    if not match:
+        return url
+    name = match.group(1)
+    if base_var is not None and name == base_var and _BASE_VAR_RE.match(url):
+        return _ENV_PREFIX_RE.sub("", url)
+    if env is not None and env.inline_value(name) is not None:
+        return url  # resolvable, but not the base address: keep it in the path
+    return _ENV_PREFIX_RE.sub("", url)
+
+
+def _collect_fixtures(
+    req: ParsedRequest, env: PostmanEnvironment | None, base_var: str | None = None
+) -> list[str]:
     """Variable names in this request that become named pytest fixtures.
 
     A fixture is needed for every {{var}} that survives inlining (secret or
@@ -292,9 +372,10 @@ def _collect_fixtures(req: ParsedRequest, env: PostmanEnvironment | None) -> lis
     def _add_safe(text: str) -> None:
         names.update(n for n in _ENV_VAR_RE.findall(text) if _is_safe_fixture_name(n))
 
-    url = _inline_env_tokens(req.url, env)
+    url = req.url
     if not url.startswith(("http://", "https://")) and req.strip_leading_url_var:
-        url = _ENV_PREFIX_RE.sub("", url)  # relative: leading var -> BASE_URL, not a fixture
+        url = _strip_base_var(url, env, base_var)  # base var -> BASE_URL, not a fixture
+    url = _inline_env_tokens(url, env)  # same order as _render_url, or the two disagree
     _add_safe(url)  # remaining url vars (absolute or relative)
 
     for key, value in req.headers.items():
@@ -333,14 +414,15 @@ def generate(
     env.filters["render_files"] = _render_files
     env.filters["docstring"] = _docstring_safe
     env.filters["strip_base_url"] = _strip_base_url
+    base_var, base_url_default = _base_url_choice(requests, postman_env, _BASE_URL_FALLBACK)
     env.filters["render_url"] = lambda url, strip_leading=True: _render_url(
-        url, postman_env, strip_leading
+        url, postman_env, strip_leading, base_var
     )
     env.filters["render_header_value"] = lambda value: _render_header_value(value, postman_env)
 
     template = env.get_template("test_collection.jinja2")
 
-    fixtures_per_request = [_collect_fixtures(req, postman_env) for req in requests]
+    fixtures_per_request = [_collect_fixtures(req, postman_env, base_var) for req in requests]
     all_fixtures = sorted({name for fx in fixtures_per_request for name in fx})
 
     # Split auth headers out of each request. non_auth headers render inline as
@@ -368,6 +450,7 @@ def generate(
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     rendered = template.render(
         requests=requests,
+        base_url_default=base_url_default,
         fixtures_per_request=fixtures_per_request,
         all_fixtures=all_fixtures,
         non_auth_per_request=non_auth_per_request,
