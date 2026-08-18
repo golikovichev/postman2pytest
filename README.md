@@ -187,6 +187,49 @@ def test_users_get_get_all_users():
 def test_users_post_create_user():
 ```
 
+## GitHub Action
+
+Convert a collection and run the generated suite in one workflow step. Nothing
+is installed locally and no test file is committed - the suite is generated at
+run time from the collection already in the repository.
+
+```yaml
+name: API tests
+on: [push]
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: golikovichev/postman2pytest@v1
+        with:
+          collection: postman/my_api.postman_collection.json
+          base-url: https://api.example.com
+```
+
+Inputs:
+
+| Input | Default | What it does |
+|---|---|---|
+| `collection` | required | Postman collection, or an OpenAPI spec with `input-format: openapi` |
+| `input-format` | `postman` | `postman` or `openapi` |
+| `out` | `generated_tests/test_api.py` | Where the generated suite is written |
+| `base-url` | empty | Passed to the run as `BASE_URL` |
+| `env-file` | empty | Postman environment export; secrets stay as env lookups |
+| `filter-folder` | empty | Convert one folder only |
+| `run-tests` | `true` | Set `false` to generate without running |
+| `pytest-args` | empty | Extra pytest arguments, e.g. `-k smoke --maxfail=1` |
+| `python-version` | `3.12` | Python used to convert and run |
+| `version` | latest | Pin a postman2pytest release |
+
+Outputs: `tests-path` and `test-count`, so later steps can upload the suite as
+an artifact or gate on how many tests were produced.
+
+Secrets stay secrets: pass them as environment variables on the job, and the
+generated tests read them through `os.environ` rather than having them written
+into the file.
+
 ## How It Works
 
 1. **Parse**: reads the Postman Collection JSON, flattens nested folders into a flat request list
@@ -295,9 +338,9 @@ the [issues board](https://github.com/golikovichev/postman2pytest/issues).
   suite, so the collection and the tests can both stay current instead of the
   conversion being a one-time export. This is the gap a one-directional
   converter leaves open.
-- **Drop-in CI action**: a GitHub Action that runs the conversion and then the
-  generated suite from one workflow file, so a `postman_collection.json` in a
-  repo becomes a running pytest job without local setup.
+- **Drop-in CI action**: done. See [GitHub Action](#github-action) - a
+  `postman_collection.json` in a repo becomes a running pytest job from one
+  workflow file, with no local setup.
 - **Pre-request script translation, scoped scope**: surface the script,
   even as a `pytest.fixture` stub, so the operator does not lose the auth
   context silently.

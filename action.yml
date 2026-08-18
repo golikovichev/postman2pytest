@@ -1,0 +1,108 @@
+name: postman2pytest
+description: Convert a Postman collection or OpenAPI spec into pytest tests and run them in one workflow step.
+author: Mikhail Golikov
+
+branding:
+  icon: repeat
+  color: green
+
+inputs:
+  collection:
+    description: Path to the Postman Collection v2.1 JSON, or an OpenAPI 3.x spec when input-format is openapi.
+    required: true
+  input-format:
+    description: Input format, either postman or openapi.
+    required: false
+    default: postman
+  out:
+    description: Where to write the generated pytest file.
+    required: false
+    default: generated_tests/test_api.py
+  base-url:
+    description: Base URL the generated tests call. Exported as BASE_URL for the test run.
+    required: false
+    default: ""
+  env-file:
+    description: Path to a Postman environment export. Non-secret variables are inlined, secrets stay as env lookups.
+    required: false
+    default: ""
+  filter-folder:
+    description: Only convert requests inside this Postman folder.
+    required: false
+    default: ""
+  run-tests:
+    description: Run the generated suite after converting. Set to false to generate only.
+    required: false
+    default: "true"
+  pytest-args:
+    description: Extra arguments passed to pytest, for example "-k smoke --maxfail=1".
+    required: false
+    default: ""
+  python-version:
+    description: Python version used to convert and run.
+    required: false
+    default: "3.12"
+  version:
+    description: Version of postman2pytest to install. Defaults to the latest release on PyPI.
+    required: false
+    default: ""
+  install:
+    description: >-
+      Where postman2pytest comes from. "pypi" installs the release; "skip" assumes it is
+      already on PATH, which is how this repository smoke-tests the action against its own
+      checkout instead of against the last published version.
+    required: false
+    default: pypi
+
+outputs:
+  tests-path:
+    description: Path of the generated pytest file.
+    value: ${{ steps.convert.outputs.tests-path }}
+  test-count:
+    description: Number of generated test functions.
+    value: ${{ steps.convert.outputs.test-count }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install postman2pytest
+      if: inputs.install != 'skip'
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        if [ -n "${{ inputs.version }}" ]; then
+          pip install "postman2pytest==${{ inputs.version }}" pytest requests
+        else
+          pip install postman2pytest pytest requests
+        fi
+
+    - name: Convert collection
+      id: convert
+      shell: bash
+      run: |
+        set -euo pipefail
+        args=(--collection "${{ inputs.collection }}" --out "${{ inputs.out }}" --input-format "${{ inputs.input-format }}")
+        [ -n "${{ inputs.env-file }}" ] && args+=(--env "${{ inputs.env-file }}")
+        [ -n "${{ inputs.filter-folder }}" ] && args+=(--filter-folder "${{ inputs.filter-folder }}")
+        [ -n "${{ inputs.base-url }}" ] && args+=(--base-url "${{ inputs.base-url }}")
+        postman2pytest "${args[@]}"
+        # Counted from the generated file rather than parsed from log output:
+        # log wording is free to change, the def-line shape is the contract.
+        count=$(grep -c "^def test_" "${{ inputs.out }}" || true)
+        echo "tests-path=${{ inputs.out }}" >> "$GITHUB_OUTPUT"
+        echo "test-count=${count}" >> "$GITHUB_OUTPUT"
+        echo "Generated ${count} test(s) into ${{ inputs.out }}"
+
+    - name: Run generated tests
+      if: inputs.run-tests == 'true'
+      shell: bash
+      env:
+        BASE_URL: ${{ inputs.base-url }}
+      run: |
+        set -euo pipefail
+        pytest "${{ inputs.out }}" ${{ inputs.pytest-args }}

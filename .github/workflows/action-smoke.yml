@@ -1,0 +1,56 @@
+name: Action smoke
+
+# Proves the composite action still works, on every change to it.
+#
+# Runs against this checkout rather than the published release (install: skip,
+# after an editable install), because an action that only ever exercises the
+# last PyPI version cannot catch a break introduced in the same commit.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - action.yml
+      - .github/workflows/action-smoke.yml
+      - core/**
+      - main.py
+  pull_request:
+    paths:
+      - action.yml
+      - .github/workflows/action-smoke.yml
+      - core/**
+      - main.py
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install this checkout
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pytest requests
+
+      - name: Convert and run the httpbin demo collection
+        id: p2p
+        uses: ./
+        with:
+          collection: data/httpbin_demo.json
+          out: generated_tests/test_httpbin_smoke.py
+          base-url: https://httpbin.org
+          install: skip
+
+      - name: Check the action reported what it generated
+        run: |
+          test -f "${{ steps.p2p.outputs.tests-path }}"
+          test "${{ steps.p2p.outputs.test-count }}" -gt 0
+          echo "action reported ${{ steps.p2p.outputs.test-count }} test(s)"
