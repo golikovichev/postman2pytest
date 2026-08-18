@@ -13,12 +13,14 @@ on:
       - action.yml
       - .github/workflows/action-smoke.yml
       - core/**
+      - templates/**
       - main.py
   pull_request:
     paths:
       - action.yml
       - .github/workflows/action-smoke.yml
       - core/**
+      - templates/**
       - main.py
 
 permissions:
@@ -50,7 +52,28 @@ jobs:
           install: skip
 
       - name: Check the action reported what it generated
+        env:
+          TESTS_PATH: ${{ steps.p2p.outputs.tests-path }}
+          TESTS_DIR: ${{ steps.p2p.outputs.tests-dir }}
+          TEST_COUNT: ${{ steps.p2p.outputs.test-count }}
         run: |
-          test -f "${{ steps.p2p.outputs.tests-path }}"
-          test "${{ steps.p2p.outputs.test-count }}" -gt 0
-          echo "action reported ${{ steps.p2p.outputs.test-count }} test(s)"
+          set -euo pipefail
+          test -f "$TESTS_PATH"
+          test -d "$TESTS_DIR"
+          test "$TEST_COUNT" -gt 0
+          echo "action reported ${TEST_COUNT} test(s)"
+
+      # Without this the smoke can pass while exercising the published wheel:
+      # `install: skip` is an exact string match, so a typo or a dropped line
+      # would install PyPI over the editable install and the run would still be
+      # green - the precise failure this workflow exists to catch.
+      - name: Check it ran against this checkout, not a release
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import core, os, sys
+          where = os.path.realpath(core.__file__)
+          root = os.path.realpath(os.environ["GITHUB_WORKSPACE"])
+          print("core imported from", where)
+          sys.exit(0 if where.startswith(root) else 1)
+          PY

@@ -202,11 +202,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: golikovichev/postman2pytest@v1
+      - uses: golikovichev/postman2pytest@main
         with:
           collection: postman/my_api.postman_collection.json
           base-url: https://api.example.com
 ```
+
+Pin to `@main` until a release tag ships the action; no existing tag contains
+`action.yml`.
 
 Inputs:
 
@@ -218,13 +221,16 @@ Inputs:
 | `base-url` | empty | Passed to the run as `BASE_URL` |
 | `env-file` | empty | Postman environment export; secrets stay as env lookups |
 | `filter-folder` | empty | Convert one folder only |
-| `run-tests` | `true` | Set `false` to generate without running |
-| `pytest-args` | empty | Extra pytest arguments, e.g. `-k smoke --maxfail=1` |
+| `run-tests` | `true` | Set exactly `false` to generate without running |
+| `pytest-args` | empty | Extra pytest arguments, split on whitespace, e.g. `-k smoke --maxfail=1`. Quoted arguments such as `-m 'not slow'` are not supported |
 | `python-version` | `3.12` | Python used to convert and run |
 | `version` | latest | Pin a postman2pytest release |
+| `install` | `pypi` | Set `skip` when the package is already on PATH, e.g. when testing a checkout of this repo |
 
-Outputs: `tests-path` and `test-count`, so later steps can upload the suite as
-an artifact or gate on how many tests were produced.
+Outputs: `tests-path`, `tests-dir` and `test-count`. Upload `tests-dir` rather
+than `tests-path` when archiving the suite: a collection with auth headers also
+produces a sibling `conftest.py` holding the `auth_headers` fixture, and the
+tests do not collect without it.
 
 Secrets stay secrets: pass them as environment variables on the job, and the
 generated tests read them through `os.environ` rather than having them written

