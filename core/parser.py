@@ -61,6 +61,27 @@ def _slugify(text: str) -> str:
 _STATUS_HAVE_RE = re.compile(r"\.have\.status\((\d+)\)")
 _STATUS_CODE_RE = re.compile(r"pm\.response\.code\s*===?\s*(\d+)")
 
+_PREREQUEST_ENV_SET_RE = re.compile(
+    r"""pm\.environment\.set\(\s*(['"])(.*?)\1\s*,\s*(['"])(.*?)\3\s*\)\s*;?"""
+)
+
+
+def _extract_prerequest_variables(events: list[dict[str, Any]]) -> dict[str, str]:
+    """Extract literal pm.environment.set("key", "value") assignments."""
+    variables: dict[str, str] = {}
+
+    for event in events:
+        if event.get("listen") != "prerequest":
+            continue
+
+        script = "\n".join(event.get("script", {}).get("exec", []))
+
+        for match in _PREREQUEST_ENV_SET_RE.finditer(script):
+            key = match.group(2)
+            value = match.group(4)
+            variables[key] = value
+
+    return variables
 
 def _extract_status(events: list[dict[str, Any]]) -> int | None:
     """
@@ -191,6 +212,7 @@ class ParsedRequest(BaseModel):
     file_fields: list[tuple[str, str]] | None = None
     expected_status: int
     assertions: list[Assertion] = []  # translated from Postman test scripts
+    prerequest_variables: dict[str, str] = {}
     folder: str | None
     final_test_name: str = ""  # filled by _disambiguate after parse
     # Postman collections carry the base URL as the leading {{var}} of each URL,
@@ -316,6 +338,7 @@ def _parse_item(
 
         events = item.get("event", [])
         expected_status = _extract_status(events) or 200
+        prerequest_variables = _extract_prerequest_variables(events)
 
         results.append(
             ParsedRequest(
@@ -329,9 +352,11 @@ def _parse_item(
                 file_fields=file_fields,
                 expected_status=expected_status,
                 assertions=_extract_assertions(events),
+                prerequest_variables=prerequest_variables,
                 folder=folder,
             )
-        )
+        )    
+
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         # AttributeError covers a non-dict sub-structure (request / a header
         # element / body / a form field arriving as a string or None), where a

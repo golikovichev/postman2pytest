@@ -132,7 +132,7 @@ def test_generate_headers_present(tmp_path):
     conftest = (out.parent / "conftest.py").read_text(encoding="utf-8")
     # non-auth header stays inline; the auth header moves to the shared fixture.
     assert "Accept" in content
-    assert "**auth_headers" in content
+    assert '"Authorization": auth_headers["Authorization"]' in content
     assert "Bearer token" not in content
     assert "Authorization" in conftest
     assert "AUTH_TOKEN" in conftest
@@ -406,3 +406,28 @@ def test_collection_name_with_quotes_docstring_is_safe(tmp_path):
     generate([req], collection_name='My """API""" \\ end"', output_path=out)
     code = out.read_text(encoding="utf-8")
     compile(code, str(out), "exec")
+
+def test_generate_prerequest_environment_set(tmp_path):
+    req = ParsedRequest(
+        name="Get users",
+        method="GET",
+        url="ENV_base_url/api/v1/users",
+        headers={},
+        body=None,
+        expected_status=200,
+        assertions=[],
+        prerequest_variables={"token": "abc123"},
+        folder=None,
+    )
+
+    output = tmp_path / "test_generated.py"
+
+    generate(
+        requests=[req],
+        collection_name="API",
+        output_path=output,
+    )
+
+    content = output.read_text(encoding="utf-8")
+
+    assert 'os.environ["token"] = "abc123"' in content

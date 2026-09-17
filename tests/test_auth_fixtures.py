@@ -61,7 +61,8 @@ def test_secret_not_in_test_module(tmp_path):
     assert "secret-token-123" not in module
     # the test references the fixture rather than hardcoding the header.
     assert "auth_headers" in module
-    assert "**auth_headers" in module
+    assert '"Authorization": auth_headers["Authorization"]' in module
+
 
 
 def test_non_auth_headers_stay_inline(tmp_path):
@@ -183,3 +184,40 @@ def test_generated_files_compile_with_mixed_headers(tmp_path):
     )
     _parses(module)
     _parses(conftest)
+
+def test_different_auth_schemes_are_not_mixed_between_requests(tmp_path):
+    reqs = [
+        _req(
+            name="Bearer request",
+            headers={"Authorization": "Bearer bearer-secret"},
+        ),
+        _req(
+            name="API key request",
+            method="POST",
+            headers={"X-Api-Key": "api-secret"},
+        ),
+    ]
+
+    module, conftest = _gen(reqs, tmp_path)
+
+    _parses(module)
+    _parses(conftest)
+
+    # The shared fixture may contain both authentication headers.
+    assert '"Authorization"' in conftest
+    assert '"X-Api-Key"' in conftest
+
+    # Separate the two generated tests.
+    bearer_test = module.split("def test_get_bearer_request")[1].split(
+        "def test_post_api_key_request"
+    )[0]
+
+    api_key_test = module.split("def test_post_api_key_request")[1]
+
+    # Bearer request must only receive Authorization.
+    assert '"Authorization": auth_headers["Authorization"]' in bearer_test
+    assert '"X-Api-Key"' not in bearer_test
+
+    # API-key request must only receive X-Api-Key.
+    assert '"X-Api-Key": auth_headers["X-Api-Key"]' in api_key_test
+    assert '"Authorization"' not in api_key_test
