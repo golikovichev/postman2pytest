@@ -468,3 +468,23 @@ def test_unknown_schema_logs_warning(tmp_path, caplog):
     assert len(requests) == 1
     warnings = [r for r in caplog.records if r.levelname == "WARNING"]
     assert any("Unexpected collection schema" in r.message for r in warnings)
+
+def test_parse_prerequest_environment_set(tmp_path):
+    item = _simple_request("Get users")
+
+    item["event"] = [
+        {
+            "listen": "prerequest",
+            "script": {
+                "exec": [
+                    'pm.environment.set("token", "abc123");'
+                ]
+            },
+        }
+    ]
+
+    requests = parse_collection(
+        _write_collection(tmp_path, _minimal_collection([item]))
+    )
+
+    assert requests[0].prerequest_variables == {"token": "abc123"}

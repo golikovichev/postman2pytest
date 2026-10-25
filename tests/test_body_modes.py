@@ -319,3 +319,30 @@ def test_generate_duplicate_file_keys_list_form_compiles(tmp_path):
     content = out.read_text(encoding="utf-8")
     assert content.count('"docs"') == 2
     assert '"a.pdf"' in content and '"b.pdf"' in content
+
+def test_generated_file_upload_uses_context_manager(tmp_path):
+    req = ParsedRequest(
+        name="Upload document",
+        method="POST",
+        url="ENV_base_url/upload",
+        headers={},
+        body=None,
+        body_mode="formdata",
+        form_fields=None,
+        file_fields=[("document", "example.txt")],
+        expected_status=200,
+        assertions=[],
+        folder=None,
+    )
+
+    output = tmp_path / "test_upload.py"
+
+    generate(
+        requests=[req],
+        collection_name="API",
+        output_path=output,
+    )
+
+    content = output.read_text(encoding="utf-8")
+
+    assert "with open(" in content

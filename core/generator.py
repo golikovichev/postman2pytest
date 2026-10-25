@@ -256,6 +256,49 @@ def _render_files(file_fields: list[tuple[str, str]]) -> str:
     body = ", ".join(entries)
     return "{" + body + "}" if unique else "[" + body + "]"
 
+def _render_file_contexts(file_fields: list[tuple[str, str]]) -> str:
+    """Render context managers for multipart upload file handles."""
+    import json
+
+    contexts: list[str] = []
+
+    for index, (key, filename) in enumerate(file_fields):
+        path = (
+            f"os.environ.get("
+            f"{json.dumps(_file_env_name(key))}, "
+            f"{json.dumps(filename)})"
+        )
+
+        contexts.append(
+            f'open({path}, "rb") as _file_{index}'
+        )
+
+    return ", ".join(contexts)
+
+
+def _render_files_from_handles(file_fields: list[tuple[str, str]]) -> str:
+    """Render the requests files= structure using already-open file handles."""
+    import json
+
+    keys = [key for key, _ in file_fields]
+    unique = len(set(keys)) == len(keys)
+
+    entries: list[str] = []
+
+    for index, (key, _) in enumerate(file_fields):
+        if unique:
+            entries.append(
+                f"{json.dumps(key)}: _file_{index}"
+            )
+        else:
+            entries.append(
+                f"({json.dumps(key)}, _file_{index})"
+            )
+
+    body = ", ".join(entries)
+
+    return "{" + body + "}" if unique else "[" + body + "]"
+
 
 def _render_auth_value(name: str, value: str, env: PostmanEnvironment | None) -> str:
     """Python expression for one auth header value in the auth_headers fixture.
@@ -412,6 +455,8 @@ def generate(
     )
     env.filters["tojson"] = _to_python_repr
     env.filters["render_files"] = _render_files
+    env.filters["render_file_contexts"] = _render_file_contexts
+    env.filters["render_files_from_handles"] = _render_files_from_handles
     env.filters["docstring"] = _docstring_safe
     env.filters["strip_base_url"] = _strip_base_url
     base_var, base_url_default = _base_url_choice(requests, postman_env, _BASE_URL_FALLBACK)
@@ -430,12 +475,16 @@ def generate(
     # shared auth_headers fixture written to conftest.py.
     non_auth_per_request: list[dict[str, str]] = []
     has_auth_per_request: list[bool] = []
+    auth_names_per_request: list[list[str]] = []
     auth_headers_map: dict[str, str] = {}
     seen_auth_lower: set[str] = set()  # HTTP header names are case-insensitive
+
     for req in requests:
         non_auth, auth_items = _split_auth_headers(req, postman_env)
         non_auth_per_request.append(non_auth)
         has_auth_per_request.append(bool(auth_items))
+        auth_names_per_request.append([name for name, _ in auth_items])
+
         for name, expr in auth_items:
             if name.lower() in seen_auth_lower:
                 continue  # same header in another casing: keep the first entry
@@ -448,6 +497,7 @@ def generate(
     ]
 
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
     rendered = template.render(
         requests=requests,
         base_url_default=base_url_default,
@@ -455,6 +505,7 @@ def generate(
         all_fixtures=all_fixtures,
         non_auth_per_request=non_auth_per_request,
         has_auth_per_request=has_auth_per_request,
+        auth_names_per_request=auth_names_per_request,
         params_per_request=params_per_request,
         collection_name=collection_name,
         generated_at=generated_at,
